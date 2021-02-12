@@ -34,7 +34,7 @@ inThisBuild(Seq(
 ))
 
 lazy val xinuk = project.in(file("."))
-  .aggregate(`xinuk-core`, rabbits, fortwist, torch, mock, urban)
+  .aggregate(`xinuk-core`, continuousEnv, rabbits, fortwist, torch, mock, urban)
   .disablePlugins(AssemblyPlugin)
 
 lazy val `xinuk-core` = project
@@ -80,6 +80,7 @@ def modelProject(projectName: String)(mainClassName: String): Project = {
     ).dependsOn(`xinuk-core`)
 }
 
+lazy val continuousEnv = modelProject("continuous-env")("pl.edu.agh.continuous.env.ContinuousEnvMain")
 lazy val rabbits = modelProject("rabbits")("pl.edu.agh.rabbits.RabbitsMain")
 lazy val fortwist = modelProject("fortwist")("pl.edu.agh.fortwist.FortwistMain")
 lazy val torch = modelProject("torch")("pl.edu.agh.torch.TorchMain")

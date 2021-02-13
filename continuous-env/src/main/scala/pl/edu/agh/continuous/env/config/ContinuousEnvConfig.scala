@@ -1,7 +1,7 @@
 package pl.edu.agh.continuous.env.config
 
 import pl.edu.agh.xinuk.config.{GuiType, XinukConfig}
-import pl.edu.agh.xinuk.model.{WorldType}
+import pl.edu.agh.xinuk.model.{Signal, WorldType}
 
 final case class ContinuousEnvConfig(
                                 worldType: WorldType,
@@ -22,5 +22,8 @@ final case class ContinuousEnvConfig(
 
                                 cellSize: Int,
 
-                                beingSpawnChance: Double
+                                signalSpawnChance: Double,
+                                beingSpawnChance: Double,
+
+                                initialSignal: Signal
                               ) extends XinukConfig

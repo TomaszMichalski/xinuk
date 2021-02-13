@@ -1,5 +1,5 @@
 <component name="ProjectRunConfigurationManager">
-  <configuration default="false" name="Rabbits parallel" type="CompoundRunConfigurationType">
+  <configuration default="false" name="Continuous-env parallel" type="CompoundRunConfigurationType">
     <toRun name="Continuous-env parallel supervisor" type="Application" />
     <toRun name="Continuous-env parallel worker" type="Application" />
     <method v="2" />

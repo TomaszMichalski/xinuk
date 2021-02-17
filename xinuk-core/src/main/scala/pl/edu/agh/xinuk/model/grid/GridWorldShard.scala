@@ -2,7 +2,7 @@ package pl.edu.agh.xinuk.model.grid
 
 import pl.edu.agh.xinuk.config.XinukConfig
 import pl.edu.agh.xinuk.model._
-import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
+import pl.edu.agh.xinuk.model.continuous.{GridMultiCellId, Neighbourhood}
 
 object GridWorldType extends WorldType {
   override def directions: Seq[Direction] = GridDirection.values
@@ -51,6 +51,8 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
   private val cellsMutable: MutableMap[CellId, Cell] = MutableMap.empty.withDefault(id => Cell.empty(id))
   private val neighboursMutable: MutableMap[CellId, MutableMap[Direction, CellId]] = MutableMap.empty.withDefault(_ => MutableMap.empty)
 
+  private val multiConnectionNeighbours = MutableMap[CellId, Neighbourhood] = MutableMap.empty.withDefault(_ => Neighbourhood.empty)
+
   override def apply(cellId: CellId): Cell = cellsMutable(cellId)
 
   override def update(cellId: CellId, cellState: CellState): Unit = cellsMutable(cellId) = Cell(cellId, cellState)
@@ -86,6 +88,11 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
     val cellNeighbours = neighboursMutable(from)
     cellNeighbours(direction) = to
     neighboursMutable(from) = cellNeighbours
+  }
+
+  def multiConnectOneWay(from: CellId, direction: Direction, to: CellId): Unit = {
+    val existingNeighbourHood = neighboursMutable(from)
+    // TODO case cardinal, diagonal
   }
 
   def withGridConnections(): GridWorldBuilder = {

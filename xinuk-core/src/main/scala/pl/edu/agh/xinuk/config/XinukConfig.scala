@@ -19,6 +19,8 @@ trait XinukConfig {
 
   def guiType: GuiType
   def guiCellSize: Int
+
+  def cellSize: Int
 }
 
 sealed trait GuiType extends NamedEnum

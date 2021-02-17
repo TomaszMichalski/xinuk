@@ -4,11 +4,13 @@ import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.{CellOutline, Obstacle}
 import pl.edu.agh.xinuk.algorithm.WorldCreator
-import pl.edu.agh.xinuk.model.{CellState, Obstacle, Signal, WorldBuilder}
+import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
+import pl.edu.agh.xinuk.model.{CellState, Signal, WorldBuilder}
 import pl.edu.agh.xinuk.model.grid.{GridCellId, GridWorldBuilder}
 
 import java.awt.geom.Area
 import java.awt.Polygon
+import scala.collection.mutable
 import scala.swing.Rectangle
 import scala.util.Random
 
@@ -19,10 +21,21 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   override def prepareWorld()(implicit config: ContinuousEnvConfig): WorldBuilder = {
     val worldBuilder = GridWorldBuilder().withGridConnections()
 
+    var multiCellIdMap: Map[GridCellId, Int] = Map.empty
+    var cellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
+
     for {
       x <- 0 until config.worldWidth
       y <- 0 until config.worldHeight
     } {
+      cellQueue += GridMultiCellId(x, y, 0)
+      multiCellIdMap += (GridCellId(x, y) -> 0)
+    }
+
+    while (cellQueue.nonEmpty) {
+      val nextGridMultiCellId = cellQueue.dequeue()
+      val x = nextGridMultiCellId.x
+      val y = nextGridMultiCellId.y
       val continuousEnvCell: ContinuousEnvCell = if (random.nextDouble() < config.signalSpawnChance) {
         ContinuousEnvCell(config.initialSignal)
       } else {
@@ -55,7 +68,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         }
       }
 
-      worldBuilder(GridCellId(x, y)) = CellState(continuousEnvCell)
+      worldBuilder(nextGridMultiCellId) = CellState(continuousEnvCell)
     }
 
     worldBuilder
@@ -68,7 +81,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     val yScale = config.worldWidth - x - 1
 
     val cellOutlineArea = new Area(new Rectangle(
-      xScale * config.cellSize + cellOutline.x.intValue, yScale * config.cellSize.intValue,
+      xScale * config.cellSize + cellOutline.x.intValue, yScale * config.cellSize + cellOutline.y.intValue,
       cellOutline.width.intValue, cellOutline.height.intValue))
     val obstaclesAreas = obstacles
       .map(obstacle => new Area(new Polygon(obstacle.xs, obstacle.ys, obstacle.points)))

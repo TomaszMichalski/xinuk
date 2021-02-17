@@ -2,6 +2,7 @@ package pl.edu.agh.xinuk.model.grid
 
 import pl.edu.agh.xinuk.config.XinukConfig
 import pl.edu.agh.xinuk.model._
+import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
 
 object GridWorldType extends WorldType {
   override def directions: Seq[Direction] = GridDirection.values
@@ -17,7 +18,10 @@ final class GridWorldShard(val cells: Map[CellId, Cell],
   private val localCellIdsSet: Set[CellId] = cells.keys.filter(k => cellToWorker(k) == workerId).toSet
 
   def span: ((Int, Int), (Int, Int)) = {
-    val coords = localCellIds.map { case GridCellId(x, y) => (x, y) }
+    val coords = localCellIds.map {
+      case GridCellId(x, y) => (x, y)
+      case GridMultiCellId(x, y, _) => (x, y)
+    }
     val xMin = coords.map(_._1).min
     val xMax = coords.map(_._1).max
     val xSize = xMax - xMin + 1
@@ -72,6 +76,8 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
 
   private def valid(cellId: GridCellId): Boolean = cellId.x >= 0 && cellId.x < xSize && cellId.y >= 0 && cellId.y < ySize
 
+  private def valid(cellId: GridMultiCellId): Boolean = cellId.x >= 0 && cellId.x < xSize && cellId.y >= 0 && cellId.y < ySize
+
   private def ySize: Int = config.worldHeight
 
   private def xSize: Int = config.worldWidth
@@ -87,7 +93,7 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
       x <- 0 until xSize
       y <- 0 until ySize
       direction <- GridDirection.values
-      from = GridCellId(x, y)
+      from = GridMultiCellId(x, y, 0)
       to = direction.of(from)
       if valid(to)
     } connectOneWay(from, direction, to)
@@ -166,7 +172,7 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
         val localIds: Set[CellId] = (for {
           x <- xOffset until (xOffset + xSize)
           y <- yOffset until (yOffset + ySize)
-        } yield GridCellId(x, y)).toSet
+        } yield GridMultiCellId(x, y, 0)).toSet
 
         val remoteIds: Set[CellId] = localIds.flatMap(id => neighboursMutable(id).values).diff(localIds)
 

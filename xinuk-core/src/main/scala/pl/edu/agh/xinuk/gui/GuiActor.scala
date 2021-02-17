@@ -2,8 +2,8 @@ package pl.edu.agh.xinuk.gui
 
 import java.awt.image.BufferedImage
 import java.awt.{Color, Dimension}
-
 import akka.actor.{Actor, ActorLogging, ActorRef, Props}
+
 import javax.swing.{ImageIcon, UIManager}
 import org.jfree.chart.plot.PlotOrientation
 import org.jfree.chart.{ChartFactory, ChartPanel}
@@ -12,6 +12,7 @@ import pl.edu.agh.xinuk.algorithm.Metrics
 import pl.edu.agh.xinuk.config.XinukConfig
 import pl.edu.agh.xinuk.gui.GuiActor.GridInfo
 import pl.edu.agh.xinuk.model._
+import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
 import pl.edu.agh.xinuk.model.grid.GridCellId
 import pl.edu.agh.xinuk.simulation.WorkerActor.{MsgWrapper, SubscribeGridInfo}
 
@@ -149,13 +150,19 @@ private[gui] class GuiGrid(worldSpan: ((Int, Int), (Int, Int)), cellToColor: Par
     def set(cells: Set[Cell]): Unit = {
       cells.foreach {
         case Cell(GridCellId(x, y), state) =>
-          val startX = (x - xOffset) * guiCellSize
-          val startY = (y - yOffset) * guiCellSize
-          val color: Color = cellToColor.applyOrElse(state, defaultColor)
-          img.setRGB(startX, startY, guiCellSize, guiCellSize, Array.fill(guiCellSize * guiCellSize)(color.getRGB), 0, guiCellSize)
+          setGridCellColor(x, y, state)
+        case Cell(GridMultiCellId(x, y, _), state) =>
+          setGridCellColor(x, y, state)
         case _ =>
       }
       this.repaint()
+    }
+
+    private def setGridCellColor(x: Int, y: Int, state: CellState): Unit = {
+      val startX = (x - xOffset) * guiCellSize
+      val startY = (y - yOffset) * guiCellSize
+      val color: Color = cellToColor.applyOrElse(state, defaultColor)
+      img.setRGB(startX, startY, guiCellSize, guiCellSize, Array.fill(guiCellSize * guiCellSize)(color.getRGB), 0, guiCellSize)
     }
   }
 

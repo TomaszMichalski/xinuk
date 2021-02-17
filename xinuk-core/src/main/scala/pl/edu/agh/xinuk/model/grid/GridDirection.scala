@@ -1,9 +1,12 @@
 package pl.edu.agh.xinuk.model.grid
 
 import pl.edu.agh.xinuk.model.Direction
+import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
 
 sealed class GridDirection(private val xShift: Int, private val yShift: Int) extends Direction {
   def of(id: GridCellId): GridCellId = GridCellId(id.x + xShift, id.y + yShift)
+
+  def of(id: GridMultiCellId): GridMultiCellId = GridMultiCellId(id.x + xShift, id.y + yShift, 0)
 
   def opposite: GridDirection = GridDirection.opposite(this)
 

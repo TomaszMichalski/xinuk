@@ -2,7 +2,7 @@ package pl.edu.agh.xinuk.model.continuous
 
 import pl.edu.agh.xinuk.model.CellId
 import pl.edu.agh.xinuk.model.grid.GridDirection
-import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Right, Top, TopLeft, TopRight}
+import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 
 case class Neighbourhood(cardinalNeighbourhood: Map[GridDirection, Boundary],
                          diagonalNeighbourhood: Map[GridDirection, CellId])

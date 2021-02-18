@@ -2,7 +2,7 @@ package pl.edu.agh.xinuk.model.grid
 
 import pl.edu.agh.xinuk.config.XinukConfig
 import pl.edu.agh.xinuk.model._
-import pl.edu.agh.xinuk.model.continuous.{GridMultiCellId, Neighbourhood}
+import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, Neighbourhood, Segment}
 
 object GridWorldType extends WorldType {
   override def directions: Seq[Direction] = GridDirection.values
@@ -51,7 +51,8 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
   private val cellsMutable: MutableMap[CellId, Cell] = MutableMap.empty.withDefault(id => Cell.empty(id))
   private val neighboursMutable: MutableMap[CellId, MutableMap[Direction, CellId]] = MutableMap.empty.withDefault(_ => MutableMap.empty)
 
-  private val multiConnectionNeighbours = MutableMap[CellId, Neighbourhood] = MutableMap.empty.withDefault(_ => Neighbourhood.empty)
+  private val multiConnectionNeighbours: MutableMap[GridMultiCellId, Neighbourhood] = MutableMap.empty.withDefault(_ => Neighbourhood.empty())
+  private val gridMultiCellIdMap: MutableMap[GridCellId, List[GridMultiCellId]] = MutableMap.empty.withDefault(_ => List.empty)
 
   override def apply(cellId: CellId): Cell = cellsMutable(cellId)
 
@@ -90,9 +91,28 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
     neighboursMutable(from) = cellNeighbours
   }
 
-  def multiConnectOneWay(from: CellId, direction: Direction, to: CellId): Unit = {
-    val existingNeighbourHood = neighboursMutable(from)
-    // TODO case cardinal, diagonal
+  def multiConnectOneWay(from: GridMultiCellId, direction: GridDirection, to: GridMultiCellId): Unit = {
+    val existingNeighbourhood = multiConnectionNeighbours(from)
+    direction match {
+      case cardinal@(GridDirection.Top | GridDirection.Right | GridDirection.Bottom | GridDirection.Left) => {
+        var cardinalNeighbourhood: Map[GridDirection, Boundary] = existingNeighbourhood.cardinalNeighbourhood
+        cardinalNeighbourhood += (cardinal -> Boundary.full(to))
+        multiConnectionNeighbours += (from -> Neighbourhood(cardinalNeighbourhood, existingNeighbourhood.diagonalNeighbourhood))
+      }
+      case diagonal@(GridDirection.TopLeft | GridDirection.TopRight | GridDirection.BottomRight | GridDirection.BottomLeft) => {
+        var diagonalNeighbourhood: Map[GridDirection, CellId] = existingNeighbourhood.diagonalNeighbourhood
+        diagonalNeighbourhood += (diagonal -> to)
+        multiConnectionNeighbours += (from -> Neighbourhood(existingNeighbourhood.cardinalNeighbourhood, diagonalNeighbourhood))
+      }
+      case _ =>
+    }
+  }
+
+  def putToGridCellIdMap(gridMultiCellId: GridMultiCellId): Unit = {
+    val gridCellId = GridCellId(gridMultiCellId.x, gridMultiCellId.y)
+    var gridMultiCellIds: List[GridMultiCellId] = gridMultiCellIdMap(gridCellId)
+    gridMultiCellIds = gridMultiCellIds :+ gridMultiCellId
+    gridMultiCellIdMap(gridCellId) = gridMultiCellIds
   }
 
   def withGridConnections(): GridWorldBuilder = {
@@ -104,6 +124,19 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
       to = direction.of(from)
       if valid(to)
     } connectOneWay(from, direction, to)
+
+    for {
+      x <- 0 until xSize
+      y <- 0 until ySize
+      direction <- GridDirection.values
+      from = GridMultiCellId(x, y, 0)
+      to = direction.of(from)
+      if valid(to)
+    } multiConnectOneWay(from, direction, to)
+
+    for {
+      gridMultiCellId <- multiConnectionNeighbours.keys
+    } putToGridCellIdMap(gridMultiCellId)
 
     this
   }

@@ -9,7 +9,7 @@ object GridWorldType extends WorldType {
 }
 
 final class GridWorldShard(val cells: Map[CellId, Cell],
-                           val cellNeighbours: Map[CellId, Map[Direction, CellId]],
+                           val cellNeighbours: Map[CellId, Neighbourhood],
                            val workerId: WorkerId,
                            val outgoingCells: Map[WorkerId, Set[CellId]],
                            val incomingCells: Map[WorkerId, Set[CellId]],
@@ -36,7 +36,7 @@ final class GridWorldShard(val cells: Map[CellId, Cell],
 
 object GridWorldShard {
   def apply(cells: Map[CellId, Cell],
-            cellNeighbours: Map[CellId, Map[Direction, CellId]],
+            cellNeighbours: Map[CellId, Neighbourhood],
             workerId: WorkerId,
             outgoingCells: Map[WorkerId, Set[CellId]],
             incomingCells: Map[WorkerId, Set[CellId]],
@@ -100,7 +100,7 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
         multiConnectionNeighbours += (from -> Neighbourhood(cardinalNeighbourhood, existingNeighbourhood.diagonalNeighbourhood))
       }
       case diagonal@(GridDirection.TopLeft | GridDirection.TopRight | GridDirection.BottomRight | GridDirection.BottomLeft) => {
-        var diagonalNeighbourhood: Map[GridDirection, CellId] = existingNeighbourhood.diagonalNeighbourhood
+        var diagonalNeighbourhood: Map[GridDirection, GridMultiCellId] = existingNeighbourhood.diagonalNeighbourhood
         diagonalNeighbourhood += (diagonal -> to)
         multiConnectionNeighbours += (from -> Neighbourhood(existingNeighbourhood.cardinalNeighbourhood, diagonalNeighbourhood))
       }
@@ -162,14 +162,14 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
 
       val cells = (localIds ++ remoteIds).map { id => (id, cellsMutable(id)) }.toMap
 
-      val neighboursOfLocal = neighboursMutable
+      val neighboursOfLocal = multiConnectionNeighbours
         .filter { case (id, _) => localIds.contains(id) }
-        .map { case (id, cellNeighbours) => (id, cellNeighbours.toMap) }
+        .map { case (id, neighbourhood) => (id.asInstanceOf[CellId], neighbourhood) }
         .toMap
 
-      val neighboursOfRemote = neighboursMutable
+      val neighboursOfRemote = multiConnectionNeighbours
         .filter { case (id, _) => remoteIds.contains(id) }
-        .map { case (id, cellNeighbours) => (id, cellNeighbours.filter { case(_, nId) => localIds.contains(nId) }.toMap) }
+        .map { case (id, neighbourhood) => (id.asInstanceOf[CellId], cutNeighbourhoodOfRemote(neighbourhood, localIds)) }
         .toMap
 
       val neighbours = neighboursOfLocal ++ neighboursOfRemote
@@ -182,6 +182,20 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
 
       (workerId, GridWorldShard(cells, neighbours, workerId, outgoingCells, incomingCells, cellToWorker))
     })
+  }
+
+  private def cutNeighbourhoodOfRemote(neighbourhood: Neighbourhood, localIds: Set[CellId]): Neighbourhood = {
+    val cutCardinalNeighbourhood: Map[GridDirection, Boundary] = neighbourhood.cardinalNeighbourhood
+      .map { case (gridDirection, boundary) => (gridDirection, cutBoundaryOfRemote(boundary, localIds)) }
+    val cutDiagonalNeighbourhood: Map[GridDirection, GridMultiCellId] = neighbourhood.diagonalNeighbourhood
+      .filter { case (_, cellId) => localIds.contains(cellId) }
+    Neighbourhood(cutCardinalNeighbourhood, cutDiagonalNeighbourhood)
+  }
+
+  private def cutBoundaryOfRemote(boundary: Boundary, localIds: Set[CellId]): Boundary = {
+    val cutBoundary = boundary.boundaries
+      .filter { case (_, cellId) => localIds.contains(cellId) }
+    Boundary(cutBoundary)
   }
 
   private def divide(): Map[WorkerId, (Set[CellId], Set[CellId])] = {
@@ -212,11 +226,29 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
         val localIds: Set[CellId] = (for {
           x <- xOffset until (xOffset + xSize)
           y <- yOffset until (yOffset + ySize)
-        } yield GridMultiCellId(x, y, 0)).toSet
+        } yield gridMultiCellIdMap(GridCellId(x, y))).flatMap(ids => ids.toSet).toSet
 
-        val remoteIds: Set[CellId] = localIds.flatMap(id => neighboursMutable(id).values).diff(localIds)
+        val remoteIds: Set[CellId] = localIds.flatMap(id => getNeighboursOf(id)).diff(localIds)
 
         (workerId, (localIds, remoteIds))
+    }
+  }
+
+  private def getNeighboursOf(id: CellId): List[CellId] = {
+    id match {
+      case gridMultiCellId@GridMultiCellId(_, _, _) =>
+        val cardinalNeighbours: List[GridMultiCellId] = multiConnectionNeighbours(gridMultiCellId)
+          .cardinalNeighbourhood
+          .values
+          .map(boundary => boundary.boundaries)
+          .flatMap(segmentCellId => segmentCellId.values)
+          .toList
+        val diagonalNeighbours: List[GridMultiCellId] = multiConnectionNeighbours(gridMultiCellId)
+          .diagonalNeighbourhood
+          .values
+          .toList
+        (cardinalNeighbours ++ diagonalNeighbours).filter(neighbour => neighbour != null)
+      case _ => neighboursMutable(id).values.toList
     }
   }
 

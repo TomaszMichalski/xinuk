@@ -122,7 +122,7 @@ class WorkerActor[ConfigType <: XinukConfig](
   }
 
   private def createPlans(cell: Cell): Seq[TargetedPlan] = {
-    val neighbourStates = worldShard.cellNeighbours(cell.id)
+    /*val neighbourStates = worldShard.cellNeighbours(cell.id)
       .map { case (direction, neighbourId) => (direction, worldShard.cells(neighbourId).state.contents) }
     val (plans, metrics) = planCreator.createPlans(currentIteration, cell.id, cell.state, neighbourStates)
     iterationMetrics += metrics
@@ -136,7 +136,9 @@ class WorkerActor[ConfigType <: XinukConfig](
         }
     }.toSeq ++ plans.localPlans.map {
       _.toTargeted(cell.id, cell.id, cell.id)
-    }
+    }*/
+    // TODO !!!!!!
+    Seq()
   }
 
   private def processPlans(plans: Seq[TargetedPlan]): (Seq[TargetedPlan], Seq[TargetedPlan]) = {

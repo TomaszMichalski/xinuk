@@ -1,11 +1,11 @@
 package pl.edu.agh.xinuk.model.continuous
 
-import pl.edu.agh.xinuk.model.CellId
+import pl.edu.agh.xinuk.model.{Cell, CellState}
 import pl.edu.agh.xinuk.model.grid.GridDirection
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 
 case class Neighbourhood(cardinalNeighbourhood: Map[GridDirection, Boundary],
-                         diagonalNeighbourhood: Map[GridDirection, CellId])
+                         diagonalNeighbourhood: Map[GridDirection, GridMultiCellId])
 
 object Neighbourhood {
   private val Empty = Neighbourhood(
@@ -24,3 +24,6 @@ object Neighbourhood {
 
   def empty(): Neighbourhood = Empty
 }
+
+case class NeighbourhoodState(cardinalNeighbourhoodState: Map[GridDirection, BoundaryState],
+                              diagonalNeighbourhoodState: Map[GridDirection, CellState])

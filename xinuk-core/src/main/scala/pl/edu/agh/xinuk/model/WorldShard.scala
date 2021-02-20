@@ -1,6 +1,7 @@
 package pl.edu.agh.xinuk.model
 
 import pl.edu.agh.xinuk.config.XinukConfig
+import pl.edu.agh.xinuk.model.continuous.{Boundary, BoundaryState, Neighbourhood, NeighbourhoodState}
 
 
 trait WorldType {
@@ -12,7 +13,7 @@ trait WorldShard {
 
   def localCellIds: Set[CellId]
 
-  def cellNeighbours: Map[CellId, Map[Direction, CellId]]
+  def cellNeighbours: Map[CellId, Neighbourhood]
 
   def workerId: WorkerId
 
@@ -28,12 +29,34 @@ trait WorldShard {
 
   def calculateSignalUpdates(iteration: Long, signalPropagation: SignalPropagation)(implicit config: XinukConfig): Map[CellId, SignalMap] = {
     cells.keys.map { cellId =>
-      val neighbourStates = cellNeighbours(cellId)
-        .map { case (direction, neighbourId) => (direction, cells(neighbourId).state) }
-      (cellId, signalPropagation.calculateUpdate(iteration, neighbourStates))
+      (cellId, signalPropagation.calculateUpdate(iteration, toNeighbourhoodState(cellId)))
     }
   }.toMap
+
+  private def toNeighbourhoodState(cellId: CellId)(implicit config: XinukConfig): NeighbourhoodState = {
+    val cardinalNeighbourhoodState = cellNeighbours(cellId)
+      .cardinalNeighbourhood
+      .map { case (direction, boundary) => (direction, toBoundaryState(boundary)) }
+    val diagonalNeighbourhoodState = cellNeighbours(cellId)
+      .diagonalNeighbourhood
+      .map { case (direction, neighbourId) =>
+        if (cells.contains(neighbourId)) {
+          (direction, cells(neighbourId).state)
+        } else {
+          (direction, CellState.empty())
+        }
+      }
+
+    NeighbourhoodState(cardinalNeighbourhoodState, diagonalNeighbourhoodState)
+  }
+
+  private def toBoundaryState(boundary: Boundary): BoundaryState = {
+    val segmentStates = boundary.boundaries
+      .map { case (segment, neighbourId) => (segment, cells(neighbourId).state) }
+    BoundaryState.of(segmentStates)
+  }
 }
+
 
 trait WorldBuilder {
   def apply(cellId: CellId): Cell

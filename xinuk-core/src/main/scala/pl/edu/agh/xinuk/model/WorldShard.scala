@@ -33,7 +33,7 @@ trait WorldShard {
     }
   }.toMap
 
-  private def toNeighbourhoodState(cellId: CellId)(implicit config: XinukConfig): NeighbourhoodState = {
+  def toNeighbourhoodState(cellId: CellId)(implicit config: XinukConfig): NeighbourhoodState = {
     val cardinalNeighbourhoodState = cellNeighbours(cellId)
       .cardinalNeighbourhood
       .map { case (direction, boundary) => (direction, toBoundaryState(boundary)) }

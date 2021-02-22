@@ -160,6 +160,18 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   }
 
   private def isObstaclesGroupDividingCell(cellOutline: CellOutline, obstaclesGroup: Array[Obstacle]): Boolean = {
+    val obstacle = mergeToObstacle(obstaclesGroup)
+
     false // TODO
+  }
+
+  private def mergeToObstacle(obstaclesGroup: Array[Obstacle]): Obstacle = {
+    val mergedObstacleArea = new Area()
+    for (obstacle <- obstaclesGroup) {
+      val obstaclePoly = new Polygon(obstacle.xs, obstacle.ys, obstacle.points)
+      mergedObstacleArea.add(new Area(obstaclePoly))
+    }
+
+    toObstacle(mergedObstacleArea)
   }
 }

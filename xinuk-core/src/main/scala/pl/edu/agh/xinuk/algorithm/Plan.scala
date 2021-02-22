@@ -1,6 +1,6 @@
 package pl.edu.agh.xinuk.algorithm
 
-import pl.edu.agh.xinuk.model.{CellContents, CellId, Direction}
+import pl.edu.agh.xinuk.model.{CellContents, CellId}
 
 final case class StateUpdate(updateTag: UpdateTag, value: CellContents)
 
@@ -44,14 +44,14 @@ object Plan {
   }
 }
 
-final case class Plans(outwardsPlans: Map[Direction, Seq[Plan]], localPlans: Seq[Plan])
+final case class Plans(outwardsPlans: Map[CellId, Seq[Plan]], localPlans: Seq[Plan])
 
 object Plans {
   def empty: Plans = Empty
 
   private def Empty: Plans = Plans(Map.empty, Seq.empty)
 
-  def apply(outwardsPlans: Map[Direction, Seq[Plan]]): Plans = new Plans(outwardsPlans, Seq.empty)
+  def apply(outwardsPlans: Map[CellId, Seq[Plan]]): Plans = new Plans(outwardsPlans, Seq.empty)
 }
 
 final case class TargetedStateUpdate(target: CellId, update: StateUpdate)

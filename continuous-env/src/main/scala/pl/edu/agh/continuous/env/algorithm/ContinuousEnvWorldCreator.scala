@@ -62,7 +62,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
           newObstaclesGroups = newObstaclesGroups :+ obstaclesToMerge
           obstaclesGroups = newObstaclesGroups
 
-          if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge)) {
+          if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge, x, y)) {
             println("Cell should be divided")
           }
         }
@@ -159,10 +159,14 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     (x1 - x2) * (x1 - x2) + (y1 - y2) * (y1 - y2)
   }
 
-  private def isObstaclesGroupDividingCell(cellOutline: CellOutline, obstaclesGroup: Array[Obstacle]): Boolean = {
-    val obstacle = mergeToObstacle(obstaclesGroup)
+  private def isObstaclesGroupDividingCell(cellOutline: CellOutline, obstaclesGroup: Array[Obstacle], cellX: Int, cellY: Int)
+                                          (implicit config: ContinuousEnvConfig): Boolean = {
+    var obstacle = mergeToObstacle(obstaclesGroup)
+    obstacle = addDummyPointsBetweenPointsLyingOnEdges(cellOutline, obstacle, cellX, cellY)
+    val flags = pointsOnCellOutline(cellOutline, obstacle, cellX, cellY)
+    val flips = countFlips(flags)
 
-    false // TODO
+    flips > 2
   }
 
   private def mergeToObstacle(obstaclesGroup: Array[Obstacle]): Obstacle = {
@@ -173,5 +177,64 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     }
 
     toObstacle(mergedObstacleArea)
+  }
+
+  private def addDummyPointsBetweenPointsLyingOnEdges(cellOutline: CellOutline, obstacle: Obstacle, cellX: Int, cellY: Int)
+                                                     (implicit config: ContinuousEnvConfig): Obstacle = {
+    var newXs: Array[Int] = Array()
+    var newYs: Array[Int] = Array()
+
+    for (i <- 0 until obstacle.points) {
+      val currentX = obstacle.xs(i)
+      val currentY = obstacle.ys(i)
+      val nextX = obstacle.xs((i + 1) % obstacle.points)
+      val nextY = obstacle.ys((i + 1) % obstacle.points)
+      if (!isLyingInsideCellOutline(cellOutline, currentX, currentY, cellX, cellY)
+          && !isLyingInsideCellOutline(cellOutline, nextX, nextY, cellX, cellY)) {
+        val dummyX = (currentX + nextX) / 2
+        val dummyY = (currentY + nextY) / 2
+
+        newXs = newXs :+ currentX :+ dummyX
+        newYs = newYs :+ currentY :+ dummyY
+      } else {
+        newXs = newXs :+ currentX
+        newYs = newYs :+ currentY
+      }
+    }
+
+    new Obstacle(newXs, newYs, newXs.length)
+  }
+
+  private def isLyingInsideCellOutline(cellOutline: CellOutline, x: Int, y: Int, cellX: Int, cellY: Int)
+                                      (implicit config: ContinuousEnvConfig): Boolean = {
+    val xScale = cellY
+    val yScale = config.worldWidth - cellX - 1
+
+    val localX = x - xScale * config.cellSize
+    val localY = y - yScale * config.cellSize
+    localX > cellOutline.x && localX < cellOutline.x + cellOutline.width && localY > cellOutline.y && localY < cellOutline.y + cellOutline.height
+  }
+
+  private def pointsOnCellOutline(cellOutline: CellOutline, obstacle: Obstacle, cellX: Int, cellY: Int)
+                                 (implicit config: ContinuousEnvConfig): Array[Boolean] = {
+    var flags: Array[Boolean] = Array()
+    for (i <- 0 until obstacle.points) {
+      val currentX = obstacle.xs(i)
+      val currentY = obstacle.ys(i)
+      flags = flags :+ !isLyingInsideCellOutline(cellOutline, currentX, currentY, cellX, cellY)
+    }
+
+    flags
+  }
+
+  private def countFlips(flags: Array[Boolean]): Int = {
+    var flips = 0
+    for (i <- flags.indices) {
+      if (flags(i) != flags((i + 1) % flags.length)) {
+        flips = flips + 1
+      }
+    }
+
+    flips
   }
 }

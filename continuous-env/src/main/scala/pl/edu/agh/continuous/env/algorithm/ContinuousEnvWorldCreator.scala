@@ -36,11 +36,12 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val nextGridMultiCellId = cellQueue.dequeue()
       val x = nextGridMultiCellId.x
       val y = nextGridMultiCellId.y
-      val continuousEnvCell: ContinuousEnvCell = if (random.nextDouble() < config.signalSpawnChance) {
+      /*val continuousEnvCell: ContinuousEnvCell = if (random.nextDouble() < config.signalSpawnChance) {
         ContinuousEnvCell(config.initialSignal)
       } else {
         ContinuousEnvCell(Signal.zero)
-      }
+      }*/
+      val continuousEnvCell: ContinuousEnvCell = ContinuousEnvCell(Signal.zero)
 
       val obstacles = config.obstacles
       val overlappingObstacles = getOverlappingObstacles(continuousEnvCell, obstacles, x, y)
@@ -63,7 +64,8 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
           obstaclesGroups = newObstaclesGroups
 
           if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge, x, y)) {
-            println("Cell should be divided")
+            println("Cell division detected")
+            val newCells = divideCells(continuousEnvCell, obstaclesToMerge, x, y)
           }
         }
       }
@@ -236,5 +238,81 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     }
 
     flips
+  }
+
+  private def divideCells(cell: ContinuousEnvCell, obstaclesGroup: Array[Obstacle], cellX: Int, cellY: Int)
+                         (implicit config: ContinuousEnvConfig): Array[ContinuousEnvCell] = {
+    var obstacle = mergeToObstacle(obstaclesGroup)
+    obstacle = addDummyPointsBetweenPointsLyingOnEdges(cell.cellOutline, obstacle, cellX, cellY)
+    val flags = pointsOnCellOutline(cell.cellOutline, obstacle, cellX, cellY)
+
+    var newCellBoundaries: Array[Array[(Int, Int)]] = extractNewCellBoundaries(cell.cellOutline, obstacle, flags, cellX, cellY)
+
+    Array()
+  }
+
+  private def extractNewCellBoundaries(cellOutline: CellOutline, obstacle: Obstacle, flags: Array[Boolean], cellX: Int, cellY: Int)
+                                      (implicit config: ContinuousEnvConfig): Array[Array[(Int, Int)]] = {
+    val localObstaclePoints: Array[(Int, Int)] = toLocalObstaclePoints(obstacle, cellX, cellY)
+    var newCellBoundaries: Array[Array[(Int, Int)]] = Array()
+    val newCellsNum = countFlips(flags) / 2
+
+    var start = 0
+    for (i <- 0 until newCellsNum) {
+      val nextTrueBeforeFalse = findNextTrueBeforeFalse(flags, start)
+      val nextTrue = findNextTrue(flags, nextTrueBeforeFalse + 1)
+
+      var cellSplit: Array[(Int, Int)] = Array()
+      for (j <- nextTrueBeforeFalse to nextTrue) {
+        cellSplit = cellSplit :+ localObstaclePoints(j % localObstaclePoints.length)
+      }
+
+      newCellBoundaries = newCellBoundaries :+ cellSplit
+      start = nextTrue + 1
+    }
+
+    Array()
+  }
+
+  private def toLocalObstaclePoints(obstacle: Obstacle, cellX: Int, cellY: Int)
+                                   (implicit config: ContinuousEnvConfig): Array[(Int, Int)] = {
+    var localObstaclePoints: Array[(Int, Int)] = Array()
+    for (i <- 0 until obstacle.points) {
+      val xScale = cellY
+      val yScale = config.worldWidth - cellX - 1
+
+      val localX = obstacle.xs(i) - xScale * config.cellSize
+      val localY = obstacle.ys(i) - yScale * config.cellSize
+
+      localObstaclePoints = localObstaclePoints :+ (localX, localY)
+    }
+
+    localObstaclePoints
+  }
+
+  private def findNextTrueBeforeFalse(flags: Array[Boolean], start: Int): Int = {
+    var result = -1
+    var found = false
+    for (i <- 0 to flags.length if !found) {
+      if (flags((start + i) % flags.length) && !flags((start + i + 1) % flags.length)) {
+        result = start + i
+        found = true
+      }
+    }
+
+    result
+  }
+
+  private def findNextTrue(flags: Array[Boolean], start: Int): Int = {
+    var result = -1
+    var found = false
+    for (i <- 0 to flags.length if !found) {
+      if (flags((start + i) % flags.length)) {
+        result =  start + i
+        found = true
+      }
+    }
+
+    result
   }
 }

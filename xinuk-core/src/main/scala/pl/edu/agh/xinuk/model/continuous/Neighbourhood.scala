@@ -1,6 +1,6 @@
 package pl.edu.agh.xinuk.model.continuous
 
-import pl.edu.agh.xinuk.model.{Cell, CellState}
+import pl.edu.agh.xinuk.model.{CellState}
 import pl.edu.agh.xinuk.model.grid.GridDirection
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 

@@ -58,6 +58,10 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
 
   override def update(cellId: CellId, cellState: CellState): Unit = cellsMutable(cellId) = Cell(cellId, cellState)
 
+  def getExistingNeighbourhood(gridMultiCellId: GridMultiCellId): Neighbourhood = {
+    multiConnectionNeighbours(gridMultiCellId)
+  }
+
   def withWrappedBoundaries(): GridWorldBuilder = {
     def wrapped(cellId: GridCellId) = GridCellId(Math.floorMod(cellId.x, xSize), Math.floorMod(cellId.y, ySize))
 

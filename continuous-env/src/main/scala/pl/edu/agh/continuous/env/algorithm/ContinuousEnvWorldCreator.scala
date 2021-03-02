@@ -4,9 +4,10 @@ import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.{CellOutline, Obstacle}
 import pl.edu.agh.xinuk.algorithm.WorldCreator
-import pl.edu.agh.xinuk.model.continuous.GridMultiCellId
+import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, Neighbourhood, Segment}
+import pl.edu.agh.xinuk.model.grid.GridDirection.{BottomLeft, BottomRight, TopLeft, TopRight}
 import pl.edu.agh.xinuk.model.{CellState, Signal, WorldBuilder}
-import pl.edu.agh.xinuk.model.grid.{GridCellId, GridWorldBuilder}
+import pl.edu.agh.xinuk.model.grid.{GridCellId, GridDirection, GridWorldBuilder}
 
 import java.awt.geom.Area
 import java.awt.Polygon
@@ -33,15 +34,16 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     }
 
     while (cellQueue.nonEmpty) {
-      val nextGridMultiCellId = cellQueue.dequeue()
-      val x = nextGridMultiCellId.x
-      val y = nextGridMultiCellId.y
+      val gridMultiCellId = cellQueue.dequeue()
+      val x = gridMultiCellId.x
+      val y = gridMultiCellId.y
       /*val continuousEnvCell: ContinuousEnvCell = if (random.nextDouble() < config.signalSpawnChance) {
         ContinuousEnvCell(config.initialSignal)
       } else {
         ContinuousEnvCell(Signal.zero)
       }*/
       val continuousEnvCell: ContinuousEnvCell = ContinuousEnvCell(Signal.zero)
+      continuousEnvCell.neighbourhood = worldBuilder.getExistingNeighbourhood(gridMultiCellId)
 
       val obstacles = config.obstacles
       val overlappingObstacles = getOverlappingObstacles(continuousEnvCell, obstacles, x, y)
@@ -70,7 +72,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         }
       }
 
-      worldBuilder(nextGridMultiCellId) = CellState(continuousEnvCell)
+      worldBuilder(gridMultiCellId) = CellState(continuousEnvCell)
     }
 
     worldBuilder
@@ -246,9 +248,12 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     obstacle = addDummyPointsBetweenPointsLyingOnEdges(cell.cellOutline, obstacle, cellX, cellY)
     val flags = pointsOnCellOutline(cell.cellOutline, obstacle, cellX, cellY)
 
-    var newCellBoundaries: Array[Array[(Int, Int)]] = extractNewCellBoundaries(cell.cellOutline, obstacle, flags, cellX, cellY)
+    val newCellBoundaries: Array[Array[(Int, Int)]] = extractNewCellBoundaries(cell.cellOutline, obstacle, flags, cellX, cellY)
 
-    Array()
+    val newCells = newCellBoundaries
+      .map(cellBoundary => createNewCell(cell, cellBoundary))
+
+    newCells
   }
 
   private def extractNewCellBoundaries(cellOutline: CellOutline, obstacle: Obstacle, flags: Array[Boolean], cellX: Int, cellY: Int)
@@ -267,11 +272,13 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         cellSplit = cellSplit :+ localObstaclePoints(j % localObstaclePoints.length)
       }
 
+      cellSplit = addCellOutlineVerticesToSplit(cellOutline, cellSplit)
+
       newCellBoundaries = newCellBoundaries :+ cellSplit
       start = nextTrue + 1
     }
 
-    Array()
+    newCellBoundaries
   }
 
   private def toLocalObstaclePoints(obstacle: Obstacle, cellX: Int, cellY: Int)
@@ -314,5 +321,140 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     }
 
     result
+  }
+
+  private def addCellOutlineVerticesToSplit(cellOutline: CellOutline, cellSplit: Array[(Int, Int)]): Array[(Int, Int)] = {
+    val firstBoundaryNum = getBoundaryNumForPoint(cellOutline, cellSplit(0))
+    var lastBoundaryNum = getBoundaryNumForPoint(cellOutline, cellSplit(cellSplit.length - 1))
+
+    val cellOutlineVertices: Array[(Int, Int)] = Array((cellOutline.x, cellOutline.y + cellOutline.height),
+                                                       (cellOutline.x + cellOutline.width, cellOutline.y + cellOutline.height),
+                                                       (cellOutline.x + cellOutline.width, cellOutline.y),
+                                                       (cellOutline.x, cellOutline.y))
+
+    var verticesToAdd: Array[(Int, Int)] = Array()
+    if (lastBoundaryNum < firstBoundaryNum) {
+      lastBoundaryNum = lastBoundaryNum + 4
+    }
+    for (i <- firstBoundaryNum until lastBoundaryNum) {
+      if (cellOutlineVertices(i % 4) != cellSplit(0)) {
+        verticesToAdd = verticesToAdd :+ cellOutlineVertices(i % 4)
+      }
+    }
+
+    cellSplit.reverse :++ verticesToAdd
+  }
+
+  private def getBoundaryNumForPoint(cellOutline: CellOutline, point: (Int, Int)): Int = {
+    val x = point._1
+    val y = point._2
+
+    var boundaryNum = -1
+    if (x == cellOutline.x && y > cellOutline.y && y <= cellOutline.y + cellOutline.height) {
+      boundaryNum = 0
+    } else if (x > cellOutline.x && x <= cellOutline.x + cellOutline.width && y == cellOutline.y + cellOutline.height) {
+      boundaryNum = 1
+    } else if (x == cellOutline.x + cellOutline.width && y >= cellOutline.y && y < cellOutline.y + cellOutline.height) {
+      boundaryNum = 2
+    } else if (x <= cellOutline.x + cellOutline.width && x > cellOutline.x && y == cellOutline.y) {
+      boundaryNum = 3
+    }
+
+    boundaryNum
+  }
+
+  private def createNewCell(existingCell: ContinuousEnvCell, newCellBoundary: Array[(Int, Int)])
+                           (implicit config:ContinuousEnvConfig): ContinuousEnvCell = {
+    import scala.collection.mutable.{Map => MutableMap}
+
+    val existingNeighbourhood = existingCell.neighbourhood
+    var newCellNeighbourhood = Neighbourhood.empty()
+    val cardinalNeighbourhood: MutableMap[GridDirection, Boundary] = MutableMap.from(newCellNeighbourhood.cardinalNeighbourhood)
+    val diagonalNeighbourhood: MutableMap[GridDirection, GridMultiCellId] = MutableMap.from(newCellNeighbourhood.diagonalNeighbourhood)
+
+    for (i <- newCellBoundary.indices) {
+      val start = newCellBoundary(i)
+      val end = newCellBoundary((i + 1) % newCellBoundary.length)
+      if (isVertical(start, end)) { // can be left or right
+        var segment = Segment(start._2, end._2)
+        if (isLeft(existingCell, start)) {
+
+        } else if (isRight(existingCell, start)) {
+          segment = Segment(segment.b, segment.a) // need to mirror in case it's right boundary
+
+        }
+      } else if (isHorizontal(start, end)) { // can be top or bottom
+        var segment = Segment(start._1, end._1)
+        if (isTop(existingCell, start)) {
+
+        } else if (isBottom(existingCell, start)) {
+          segment = Segment(segment.b, segment.a) // need to mirror in case it's bottom boundary
+
+        }
+      }
+    }
+
+    for (i <- newCellBoundary.indices) {
+      val point = newCellBoundary(i)
+      if (isTopLeft(existingCell, point)) {
+        diagonalNeighbourhood(TopLeft) = existingNeighbourhood.diagonalNeighbourhood(TopLeft)
+      } else if (isTopRight(existingCell, point)) {
+        diagonalNeighbourhood(TopRight) = existingNeighbourhood.diagonalNeighbourhood(TopRight)
+      } else if (isBottomRight(existingCell, point)) {
+        diagonalNeighbourhood(BottomRight) = existingNeighbourhood.diagonalNeighbourhood(BottomRight)
+      } else if (isBottomLeft(existingCell, point)) {
+        diagonalNeighbourhood(BottomLeft) = existingNeighbourhood.diagonalNeighbourhood(BottomLeft)
+      }
+    }
+
+    newCellNeighbourhood = Neighbourhood(Map.from(cardinalNeighbourhood), Map.from(diagonalNeighbourhood))
+    val newCell = ContinuousEnvCell(existingCell.initialSignal)
+    newCell.neighbourhood = newCellNeighbourhood
+
+    newCell
+  }
+
+  private def isVertical(start: (Int, Int), end: (Int, Int)): Boolean = {
+    start._1 == end._1
+  }
+
+  private def isHorizontal(start: (Int, Int), end: (Int, Int)): Boolean = {
+    start._2 == end._2
+  }
+
+  private def isLeft(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    continuousEnvCell.cellOutline.x == point._1
+  }
+
+  private def isRight(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    continuousEnvCell.cellOutline.x + continuousEnvCell.cellOutline.width == point._1
+  }
+
+  private def isTop(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    continuousEnvCell.cellOutline.y + continuousEnvCell.cellOutline.height == point._2
+  }
+
+  private def isBottom(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    continuousEnvCell.cellOutline.y == point._2
+  }
+
+  private def isTopLeft(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    val cellOutline = continuousEnvCell.cellOutline
+    cellOutline.x == point._1 && cellOutline.y + cellOutline.height == point._2
+  }
+
+  private def isTopRight(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    val cellOutline = continuousEnvCell.cellOutline
+    cellOutline.x + cellOutline.width == point._1 && cellOutline.y + cellOutline.height == point._2
+  }
+
+  private def isBottomRight(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    val cellOutline = continuousEnvCell.cellOutline
+    cellOutline.x + cellOutline.width == point._1 && cellOutline.y == point._2
+  }
+
+  private def isBottomLeft(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
+    val cellOutline = continuousEnvCell.cellOutline
+    cellOutline.x == point._1 && cellOutline.y == point._2
   }
 }

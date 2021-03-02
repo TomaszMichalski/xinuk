@@ -2,7 +2,7 @@ package pl.edu.agh.continuous.env.model.continuous
 
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 
-case class CellOutline(var x: Double, var y: Double, var width: Double, var height: Double) {
+case class CellOutline(var x: Int, var y: Int, var width: Int, var height: Int) {
 
 }
 

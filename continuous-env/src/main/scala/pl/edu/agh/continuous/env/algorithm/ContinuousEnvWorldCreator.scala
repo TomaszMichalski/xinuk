@@ -5,7 +5,7 @@ import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.{CellOutline, Obstacle}
 import pl.edu.agh.xinuk.algorithm.WorldCreator
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, Neighbourhood, Segment}
-import pl.edu.agh.xinuk.model.grid.GridDirection.{BottomLeft, BottomRight, TopLeft, TopRight}
+import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 import pl.edu.agh.xinuk.model.{CellState, Signal, WorldBuilder}
 import pl.edu.agh.xinuk.model.grid.{GridCellId, GridDirection, GridWorldBuilder}
 
@@ -378,18 +378,18 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       if (isVertical(start, end)) { // can be left or right
         var segment = Segment(start._2, end._2)
         if (isLeft(existingCell, start)) {
-
+          cardinalNeighbourhood(Left) = getNewCardinalBoundary(existingNeighbourhood, Left, segment)
         } else if (isRight(existingCell, start)) {
           segment = Segment(segment.b, segment.a) // need to mirror in case it's right boundary
-
+          cardinalNeighbourhood(Right) = getNewCardinalBoundary(existingNeighbourhood, Right, segment)
         }
       } else if (isHorizontal(start, end)) { // can be top or bottom
         var segment = Segment(start._1, end._1)
         if (isTop(existingCell, start)) {
-
+          cardinalNeighbourhood(Top) = getNewCardinalBoundary(existingNeighbourhood, Top, segment)
         } else if (isBottom(existingCell, start)) {
           segment = Segment(segment.b, segment.a) // need to mirror in case it's bottom boundary
-
+          cardinalNeighbourhood(Bottom) = getNewCardinalBoundary(existingNeighbourhood, Bottom, segment)
         }
       }
     }
@@ -409,6 +409,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
     newCellNeighbourhood = Neighbourhood(Map.from(cardinalNeighbourhood), Map.from(diagonalNeighbourhood))
     val newCell = ContinuousEnvCell(existingCell.initialSignal)
+    newCell.cellOutline = getNewCellOutline(newCellBoundary)
     newCell.neighbourhood = newCellNeighbourhood
 
     newCell
@@ -456,5 +457,35 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   private def isBottomLeft(continuousEnvCell: ContinuousEnvCell, point: (Int, Int)): Boolean = {
     val cellOutline = continuousEnvCell.cellOutline
     cellOutline.x == point._1 && cellOutline.y == point._2
+  }
+
+  private def getNewCellOutline(boundary: Array[(Int, Int)]): CellOutline = {
+    val minX = boundary.map(point => point._1).min
+    val maxX = boundary.map(point => point._1).max
+    val minY = boundary.map(point => point._2).min
+    val maxY = boundary.map(point => point._2).max
+
+    CellOutline(minX, minY, maxX - minX, maxY - minY)
+  }
+
+  private def getNewCardinalBoundary(existingNeighbourhood: Neighbourhood, cardinalDirection: GridDirection, segment: Segment): Boundary = {
+    val boundaryMap = existingNeighbourhood
+      .cardinalNeighbourhood(cardinalDirection)
+      .boundaries
+      .map { case (boundarySegment, gridMultiCellId) => (getCommonSegment(segment, boundarySegment), gridMultiCellId) }
+      .filter { case (commonSegment, _) => commonSegment != null }
+
+    Boundary(boundaryMap)
+  }
+
+  private def getCommonSegment(segment: Segment, boundarySegment: Segment): Segment = {
+    val a = scala.math.max(segment.a, boundarySegment.a)
+    val b = scala.math.min(segment.b, boundarySegment.b)
+
+    if (a > b) {
+      null
+    } else {
+      Segment(a, b)
+    }
   }
 }

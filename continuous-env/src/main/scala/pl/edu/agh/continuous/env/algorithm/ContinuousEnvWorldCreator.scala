@@ -12,8 +12,10 @@ import pl.edu.agh.xinuk.model.grid.{GridCellId, GridDirection, GridWorldBuilder}
 import java.awt.geom.Area
 import java.awt.Polygon
 import scala.collection.mutable
+import scala.collection.mutable.{Map => MutableMap}
 import scala.swing.Rectangle
 import scala.util.Random
+
 
 object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
@@ -22,7 +24,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   override def prepareWorld()(implicit config: ContinuousEnvConfig): WorldBuilder = {
     val worldBuilder = GridWorldBuilder().withGridConnections()
 
-    var multiCellIdMap: Map[GridCellId, Int] = Map.empty
+    var multiCellIdMap: MutableMap[GridCellId, Int] = MutableMap.empty
     var cellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
 
     for {
@@ -30,7 +32,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       y <- 0 until config.worldHeight
     } {
       cellQueue += GridMultiCellId(x, y, 0)
-      multiCellIdMap += (GridCellId(x, y) -> 0)
+      multiCellIdMap(GridCellId(x, y)) = 0
     }
 
     while (cellQueue.nonEmpty) {
@@ -68,6 +70,19 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
           if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge, x, y)) {
             println("Cell division detected")
             val newCells = divideCells(continuousEnvCell, obstaclesToMerge, x, y)
+              .filter(cell => !hasEmptyNeighbourhood(cell))
+              .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
+
+            val currentId = multiCellIdMap(GridCellId(x, y))
+            val newCellNeighbourhoodMap: MutableMap[GridMultiCellId, Neighbourhood] = MutableMap.empty
+            for (i <- newCells.indices) {
+              val nextId = currentId + i + 1
+              val newCellGridMultiCellId = GridMultiCellId(x, y, nextId)
+              newCellNeighbourhoodMap(newCellGridMultiCellId) = newCells(i).neighbourhood
+              // TODO update
+              cellQueue.enqueue(newCellGridMultiCellId)
+            }
+            multiCellIdMap(GridCellId(x, y)) = currentId + newCells.length
           }
         }
       }
@@ -365,8 +380,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
   private def createNewCell(existingCell: ContinuousEnvCell, newCellBoundary: Array[(Int, Int)])
                            (implicit config:ContinuousEnvConfig): ContinuousEnvCell = {
-    import scala.collection.mutable.{Map => MutableMap}
-
     val existingNeighbourhood = existingCell.neighbourhood
     var newCellNeighbourhood = Neighbourhood.empty()
     val cardinalNeighbourhood: MutableMap[GridDirection, Boundary] = MutableMap.from(newCellNeighbourhood.cardinalNeighbourhood)
@@ -487,5 +500,31 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     } else {
       Segment(a, b)
     }
+  }
+
+  private def hasEmptyNeighbourhood(continuousEnvCell: ContinuousEnvCell): Boolean = {
+    val emptyDiagonalNeighbourhood = continuousEnvCell
+      .neighbourhood
+      .diagonalNeighbourhood
+      .forall { case (_, gridMultiCellId) => gridMultiCellId == null }
+    val emptyCardinalNeighbourhood = continuousEnvCell
+      .neighbourhood
+      .cardinalNeighbourhood
+      .forall { case (_, boundary) => boundary.boundaries == Map.empty }
+
+    emptyDiagonalNeighbourhood && emptyCardinalNeighbourhood
+  }
+
+  private def hasSameNeighbourhood(cell: ContinuousEnvCell, other: ContinuousEnvCell): Boolean = {
+    val hasSameDiagonalNeighbourhood = cell
+      .neighbourhood
+      .diagonalNeighbourhood
+      .forall { case (direction, gridMultiCellId) => gridMultiCellId == other.neighbourhood.diagonalNeighbourhood(direction) }
+    val hasSameCardinalNeighbourhood = cell
+      .neighbourhood
+      .cardinalNeighbourhood
+      .forall { case (direction, boundary) => boundary.boundaries == other.neighbourhood.cardinalNeighbourhood(direction).boundaries }
+
+    hasSameDiagonalNeighbourhood && hasSameCardinalNeighbourhood
   }
 }

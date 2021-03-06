@@ -74,14 +74,15 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
               .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
 
             val currentId = multiCellIdMap(GridCellId(x, y))
+            val currentGridMultiCellId = GridMultiCellId(x, y, currentId)
             val newCellNeighbourhoodMap: MutableMap[GridMultiCellId, Neighbourhood] = MutableMap.empty
             for (i <- newCells.indices) {
               val nextId = currentId + i + 1
               val newCellGridMultiCellId = GridMultiCellId(x, y, nextId)
               newCellNeighbourhoodMap(newCellGridMultiCellId) = newCells(i).neighbourhood
-              // TODO update
               cellQueue.enqueue(newCellGridMultiCellId)
             }
+            worldBuilder.updateNeighbourhoodAfterDividingCell(currentGridMultiCellId, Map.from(newCellNeighbourhoodMap))
             multiCellIdMap(GridCellId(x, y)) = currentId + newCells.length
           }
         }

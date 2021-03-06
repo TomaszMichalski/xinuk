@@ -62,8 +62,34 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
     multiConnectionNeighbours(gridMultiCellId)
   }
 
-  def updateNeighbourhoodAfterDividingCell(dividedCellId: GridMultiCellId): Unit = {
+  def updateNeighbourhoodAfterDividingCell(dividedCellId: GridMultiCellId, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): Unit = {
+    updateGridMultiCellIdMap(dividedCellId, newCellNeighbourhoodMap)
 
+    val dividedCellNeighbourhood = multiConnectionNeighbours(dividedCellId)
+
+    dividedCellNeighbourhood.diagonalNeighbourhood
+      .foreach { case (direction, neighbourId) => updateDiagonalNeighbourhood(direction, neighbourId, newCellNeighbourhoodMap)}
+  }
+
+  private def updateGridMultiCellIdMap(dividedCellId: GridMultiCellId, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): Unit = {
+    val gridCellId = GridCellId(dividedCellId.x, dividedCellId.y)
+    gridMultiCellIdMap(gridCellId) = gridMultiCellIdMap(gridCellId).filter(id => id != dividedCellId) :++ newCellNeighbourhoodMap.keys
+  }
+
+  private def updateDiagonalNeighbourhood(direction: GridDirection, neighbourId: GridMultiCellId, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): Unit = {
+    val newCellWithGivenDiagonalNeighbourhood = getNewCellWithGivenDiagonalNeighbourhood(direction, newCellNeighbourhoodMap)
+    val neighbourDiagonalNeighbourhood = MutableMap.from(multiConnectionNeighbours(neighbourId).diagonalNeighbourhood)
+    neighbourDiagonalNeighbourhood(direction.opposite) = newCellWithGivenDiagonalNeighbourhood
+    multiConnectionNeighbours(neighbourId) = Neighbourhood(
+      multiConnectionNeighbours(neighbourId).cardinalNeighbourhood,
+      Map.from(neighbourDiagonalNeighbourhood))
+  }
+
+  private def getNewCellWithGivenDiagonalNeighbourhood(gridDirection: GridDirection, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): GridMultiCellId = {
+    newCellNeighbourhoodMap
+      .filter { case (_, neighbourhood) => neighbourhood.diagonalNeighbourhood(gridDirection) != null }
+      .map { case (newCellId, _) => newCellId }
+      .headOption.orNull
   }
 
   def withWrappedBoundaries(): GridWorldBuilder = {

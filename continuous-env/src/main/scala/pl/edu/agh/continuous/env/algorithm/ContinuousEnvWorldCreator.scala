@@ -24,7 +24,8 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   override def prepareWorld()(implicit config: ContinuousEnvConfig): WorldBuilder = {
     val worldBuilder = GridWorldBuilder().withGridConnections()
 
-    var multiCellIdMap: MutableMap[GridCellId, Int] = MutableMap.empty
+    val multiCellIdMap: MutableMap[GridCellId, Int] = MutableMap.empty
+    val cellOutlineMap: MutableMap[GridMultiCellId, CellOutline] = MutableMap.empty.withDefault(_ => CellOutline.default())
     var cellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
 
     for {
@@ -46,6 +47,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       }*/
       val continuousEnvCell: ContinuousEnvCell = ContinuousEnvCell(Signal.zero)
       continuousEnvCell.neighbourhood = worldBuilder.getExistingNeighbourhood(gridMultiCellId)
+      continuousEnvCell.cellOutline = cellOutlineMap(gridMultiCellId)
 
       val obstacles = config.obstacles
       val overlappingObstacles = getOverlappingObstacles(continuousEnvCell, obstacles, x, y)
@@ -73,17 +75,20 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
               .filter(cell => !hasEmptyNeighbourhood(cell))
               .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
 
-            val currentId = multiCellIdMap(GridCellId(x, y))
-            val currentGridMultiCellId = GridMultiCellId(x, y, currentId)
-            val newCellNeighbourhoodMap: MutableMap[GridMultiCellId, Neighbourhood] = MutableMap.empty
-            for (i <- newCells.indices) {
-              val nextId = currentId + i + 1
-              val newCellGridMultiCellId = GridMultiCellId(x, y, nextId)
-              newCellNeighbourhoodMap(newCellGridMultiCellId) = newCells(i).neighbourhood
-              cellQueue.enqueue(newCellGridMultiCellId)
+            if (newCells.nonEmpty) {
+              val currentId = multiCellIdMap(GridCellId(x, y))
+              val currentGridMultiCellId = GridMultiCellId(x, y, currentId)
+              val newCellNeighbourhoodMap: MutableMap[GridMultiCellId, Neighbourhood] = MutableMap.empty
+              for (i <- newCells.indices) {
+                val nextId = currentId + i + 1
+                val newCellGridMultiCellId = GridMultiCellId(x, y, nextId)
+                newCellNeighbourhoodMap(newCellGridMultiCellId) = newCells(i).neighbourhood
+                cellOutlineMap(newCellGridMultiCellId) = newCells(i).cellOutline
+                cellQueue.enqueue(newCellGridMultiCellId)
+              }
+              worldBuilder.updateNeighbourhoodAfterDividingCell(currentGridMultiCellId, Map.from(newCellNeighbourhoodMap))
+              multiCellIdMap(GridCellId(x, y)) = currentId + newCells.length
             }
-            worldBuilder.updateNeighbourhoodAfterDividingCell(currentGridMultiCellId, Map.from(newCellNeighbourhoodMap))
-            multiCellIdMap(GridCellId(x, y)) = currentId + newCells.length
           }
         }
       }

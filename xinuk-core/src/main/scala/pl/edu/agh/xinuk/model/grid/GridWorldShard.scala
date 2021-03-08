@@ -71,11 +71,9 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
 
     dividedCellNeighbourhood.diagonalNeighbourhood
       .filter { case (_, neighbourId) => neighbourId != null }
-      .foreach { case (direction, neighbourId) => updateDiagonalNeighbourhood(direction, neighbourId, newCellNeighbourhoodMap)}
+      .foreach { case (direction, neighbourId) => updateDiagonalNeighbourhood(direction, neighbourId, newCellNeighbourhoodMap) }
 
     updateMultiConnectionNeighbours(dividedCellId, newCellNeighbourhoodMap)
-
-    val i = 0
   }
 
   private def updateGridMultiCellIdMap(dividedCellId: GridMultiCellId, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): Unit = {
@@ -87,6 +85,33 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
     multiConnectionNeighbours.remove(dividedCellId)
     newCellNeighbourhoodMap
       .foreach { case (cellId, neighbourhood) => multiConnectionNeighbours(cellId) = neighbourhood }
+  }
+
+  def updateNeighbourhood(cellId: GridMultiCellId, neighbourhood: Neighbourhood): Unit = {
+    neighbourhood.cardinalNeighbourhood
+      .foreach { case (direction, boundary) => updateCardinalNeighbourhood(direction, boundary, cellId) }
+
+    neighbourhood.diagonalNeighbourhood
+      .filter { case (_, neighbourId) => neighbourId != null }
+      .foreach { case (direction, neighbourId) => updateDiagonalNeighbourhood(direction, neighbourId, cellId) }
+
+    multiConnectionNeighbours(cellId) = neighbourhood
+
+    val i = 0
+  }
+
+  private def updateCardinalNeighbourhood(direction: GridDirection, boundary: Boundary, cellId: GridMultiCellId): Unit = {
+    val cardinalNeighbourhoodUpdate = CardinalNeighbourhoodUpdate(cellId, cellId, boundary)
+    getNeighboursInBoundary(boundary)
+      .foreach(neighbourId => processCardinalNeighbourhoodUpdates(neighbourId, Array(cardinalNeighbourhoodUpdate), direction))
+  }
+
+  private def updateDiagonalNeighbourhood(direction: GridDirection, neighbourId: GridMultiCellId, cellId: GridMultiCellId): Unit = {
+    val neighbourDiagonalNeighbourhood = MutableMap.from(multiConnectionNeighbours(neighbourId).diagonalNeighbourhood)
+    neighbourDiagonalNeighbourhood(direction.opposite) = cellId
+    multiConnectionNeighbours(neighbourId) = Neighbourhood(
+      multiConnectionNeighbours(neighbourId).cardinalNeighbourhood,
+      Map.from(neighbourDiagonalNeighbourhood))
   }
 
   private def updateCardinalNeighbourhood(direction: GridDirection, boundary: Boundary, dividedCellId: GridMultiCellId, newCellNeighbourhoodMap: Map[GridMultiCellId, Neighbourhood]): Unit = {

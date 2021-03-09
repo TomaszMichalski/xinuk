@@ -96,8 +96,6 @@ case class GridWorldBuilder()(implicit config: XinukConfig) extends WorldBuilder
       .foreach { case (direction, neighbourId) => updateDiagonalNeighbourhood(direction, neighbourId, cellId) }
 
     multiConnectionNeighbours(cellId) = neighbourhood
-
-    val i = 0
   }
 
   private def updateCardinalNeighbourhood(direction: GridDirection, boundary: Boundary, cellId: GridMultiCellId): Unit = {

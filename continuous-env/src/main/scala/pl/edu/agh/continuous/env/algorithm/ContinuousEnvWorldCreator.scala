@@ -40,12 +40,13 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val gridMultiCellId = cellQueue.dequeue()
       val x = gridMultiCellId.x
       val y = gridMultiCellId.y
-      val continuousEnvCell: ContinuousEnvCell = if (random.nextDouble() < config.signalSpawnChance) {
+      val continuousEnvCell: ContinuousEnvCell = if (x == 50 && y == 30) {
         ContinuousEnvCell(config.initialSignal)
       } else {
         ContinuousEnvCell(Signal.zero)
       }
       // val continuousEnvCell: ContinuousEnvCell = ContinuousEnvCell(Signal.zero)
+
       continuousEnvCell.neighbourhood = worldBuilder.getExistingNeighbourhood(gridMultiCellId)
       continuousEnvCell.cellOutline = cellOutlineMap(gridMultiCellId)
 

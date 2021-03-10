@@ -45,7 +45,9 @@ object ContinuousEnvMain extends LazyLogging {
         .collectFirst({ case s: Signal => s.value })
         .getOrElse(0d)
 
-      if (maxSignal > 0.5) {
+      if (maxSignal > 0.75) {
+        new Color(64, 64, 255)
+      } else if (maxSignal > 0.5) {
         new Color(128, 128, 255)
       } else if (maxSignal > 0.25) {
         new Color(192, 192, 255)

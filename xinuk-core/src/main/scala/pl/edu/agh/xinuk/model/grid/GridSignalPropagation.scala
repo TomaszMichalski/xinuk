@@ -55,12 +55,14 @@ object GridSignalPropagation {
           (
             cardinal,
             cardinal.withAdjacent.map { d => getPropagatedSignal(neighbourhoodState, cardinal, d) }.reduce(_ + _) +
+            // getPropagatedSignal(neighbourhoodState, cardinal, cardinal) +
               getGeneratedSignal(neighbourhoodState, cardinal, iteration)
           )
         case diagonal@(GridDirection.TopLeft | GridDirection.TopRight | GridDirection.BottomRight | GridDirection.BottomLeft) =>
           (
             diagonal,
-            getPropagatedSignal(neighbourhoodState, diagonal, diagonal) +
+            // getPropagatedSignal(neighbourhoodState, diagonal, diagonal) +
+            diagonal.withAdjacent.map { d => getPropagatedSignal(neighbourhoodState, diagonal, d) }.reduce(_ + _) +
               getGeneratedSignal(neighbourhoodState, diagonal, iteration)
           )
         case direction => (direction, Signal.zero)

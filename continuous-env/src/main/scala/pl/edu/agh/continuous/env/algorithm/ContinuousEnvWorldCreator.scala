@@ -1,5 +1,6 @@
 package pl.edu.agh.continuous.env.algorithm
 
+import org.slf4j.Logger
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.{CellOutline, Obstacle}
@@ -20,6 +21,7 @@ import scala.util.Random
 object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
   private val random = new Random(System.nanoTime())
+  var logger: Logger = _
 
   override def prepareWorld()(implicit config: ContinuousEnvConfig): WorldBuilder = {
     val worldBuilder = GridWorldBuilder().withGridConnections()
@@ -54,7 +56,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val overlappingObstacles = getOverlappingObstacles(continuousEnvCell, obstacles, x, y)
 
       if (overlappingObstacles.nonEmpty) {
-        println("Found overlapping obstacles")
         var obstaclesGroups: Array[Array[Obstacle]] = Array()
         var cellDivided = false
 
@@ -77,7 +78,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
               .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
 
             if (newCells.nonEmpty) {
-              println("Cell division detected")
               cellDivided = true
 
               val currentId = multiCellIdMap(GridCellId(x, y))

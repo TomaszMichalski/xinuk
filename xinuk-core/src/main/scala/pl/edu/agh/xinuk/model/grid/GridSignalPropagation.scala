@@ -7,7 +7,7 @@ import pl.edu.agh.xinuk.model.{Direction, Signal, SignalMap, SignalPropagation}
 object GridSignalPropagation {
 
   final val Standard: SignalPropagation = GridSignalPropagationStandard
-  /*final val Bending: SignalPropagation = GridSignalPropagationBending*/
+  final val Bending: SignalPropagation = GridSignalPropagationBending
 
   @inline private def getPropagatedSignal(neighbourhoodState: NeighbourhoodState, neighbourDirection: Direction, signalDirection: Direction)
                                          (implicit config: XinukConfig): Signal = {
@@ -61,8 +61,8 @@ object GridSignalPropagation {
         case diagonal@(GridDirection.TopLeft | GridDirection.TopRight | GridDirection.BottomRight | GridDirection.BottomLeft) =>
           (
             diagonal,
-            // getPropagatedSignal(neighbourhoodState, diagonal, diagonal) +
-            diagonal.withAdjacent.map { d => getPropagatedSignal(neighbourhoodState, diagonal, d) }.reduce(_ + _) +
+            getPropagatedSignal(neighbourhoodState, diagonal, diagonal) +
+            //diagonal.withAdjacent.map { d => getPropagatedSignal(neighbourhoodState, diagonal, d) }.reduce(_ + _) +
               getGeneratedSignal(neighbourhoodState, diagonal, iteration)
           )
         case direction => (direction, Signal.zero)
@@ -70,19 +70,19 @@ object GridSignalPropagation {
     }
   }
 
-  /*private final object GridSignalPropagationBending extends SignalPropagation {
+  private final object GridSignalPropagationBending extends SignalPropagation {
     def direct: Double = 0.42
     def adjacent: Double = 0.29
 
-    def calculateUpdate(iteration: Long, neighbourStates: Map[Direction, CellState])(implicit config: XinukConfig): SignalMap = {
+    def calculateUpdate(iteration: Long, neighbourhoodState: NeighbourhoodState)(implicit config: XinukConfig): SignalMap = {
       config.worldType.directions.map(direction =>
         (direction,
-          getPropagatedSignal(neighbourStates, direction, direction) * direct +
-            direction.adjacent.map { d => getPropagatedSignal(neighbourStates, direction, d) }.reduce(_ + _) * adjacent +
-            getGeneratedSignal(neighbourStates, direction, iteration)
+          getPropagatedSignal(neighbourhoodState, direction, direction) * direct +
+            direction.adjacent.map { d => getPropagatedSignal(neighbourhoodState, direction, d) }.reduce(_ + _) * adjacent +
+            getGeneratedSignal(neighbourhoodState, direction, iteration)
         )
       ).toMap
     }
-  }*/
+  }
 
 }

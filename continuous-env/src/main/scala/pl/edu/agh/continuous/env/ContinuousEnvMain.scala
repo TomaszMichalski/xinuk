@@ -21,7 +21,7 @@ object ContinuousEnvMain extends LazyLogging {
       ContinuousEnvPlanCreator,
       ContinuousEnvPlanResolver,
       ContinuousEnvMetrics.empty,
-      GridSignalPropagation.Standard,
+      GridSignalPropagation.Bending,
       cellToColor
     ).start()
   }

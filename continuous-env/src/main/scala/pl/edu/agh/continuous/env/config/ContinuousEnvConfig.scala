@@ -28,5 +28,7 @@ final case class ContinuousEnvConfig(
 
                                 initialSignal: Signal,
 
+                                beingRadius: Double,
+
                                 obstacles: List[Obstacle]
                               ) extends XinukConfig

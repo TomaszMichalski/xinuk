@@ -12,6 +12,7 @@ val Version = new {
   val ScalaSwing = "2.1.1"
   val JFreeChart = "1.5.0"
   val JacksonScala = "2.11.2"
+  val JTS = "1.18.1"
 }
 
 inThisBuild(Seq(
@@ -55,6 +56,7 @@ lazy val `xinuk-core` = project
       "org.scalatest" %% "scalatest" % Version.ScalaTest % Test,
       "com.typesafe.akka" %% "akka-testkit" % Version.Akka % Test,
       "org.mockito" % "mockito-core" % Version.Mockito % Test,
+      "org.locationtech.jts" % "jts-core" % Version.JTS,
     ),
   ).disablePlugins(AssemblyPlugin)
 

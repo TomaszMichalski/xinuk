@@ -1,5 +1,7 @@
 package pl.edu.agh.continuous.env.algorithm
 
+import org.locationtech.jts.geom.{Coordinate, GeometryFactory}
+import org.locationtech.jts.operation.buffer.BufferParameters
 import org.slf4j.Logger
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
@@ -38,6 +40,8 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       multiCellIdMap(GridCellId(x, y)) = 0
     }
 
+    val obstacles = bufferObstacles(config.obstacles)
+
     while (cellQueue.nonEmpty) {
       val gridMultiCellId = cellQueue.dequeue()
       val x = gridMultiCellId.x
@@ -52,7 +56,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       continuousEnvCell.neighbourhood = worldBuilder.getExistingNeighbourhood(gridMultiCellId)
       continuousEnvCell.cellOutline = cellOutlineMap(gridMultiCellId)
 
-      val obstacles = config.obstacles
       val overlappingObstacles = getOverlappingObstacles(continuousEnvCell, obstacles, x, y)
 
       if (overlappingObstacles.nonEmpty) {
@@ -112,9 +115,43 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     worldBuilder
   }
 
+  private def bufferObstacles(obstacles: List[Obstacle])
+                             (implicit continuousEnvConfig: ContinuousEnvConfig): List[Obstacle] = {
+    obstacles
+      .map(obstacle => bufferObstacle(obstacle))
+  }
+
+  private def bufferObstacle(obstacle: Obstacle)
+                            (implicit config: ContinuousEnvConfig): Obstacle = {
+    var jtsCoordinates: Array[Coordinate] = Range(0, obstacle.points)
+      .map(i => new Coordinate(obstacle.xs(i), obstacle.ys(i)))
+      .toArray
+    jtsCoordinates = jtsCoordinates :+ new Coordinate(obstacle.xs(0), obstacle.ys(0))
+
+    val geometryFactory = new GeometryFactory()
+    val shell = geometryFactory.createPolygon(jtsCoordinates)
+    val bufferedPolygon = shell.buffer(config.beingRadius, BufferParameters.CAP_FLAT)
+
+    var newXs: Array[Int] = Array()
+    var newYs: Array[Int] = Array()
+
+    bufferedPolygon
+      .getCoordinates
+      .take(bufferedPolygon.getCoordinates.length - 1)
+      .foreach(coordinate => {
+        newXs = newXs :+ coordinate.x.intValue
+        newYs = newYs :+ coordinate.y.intValue
+      })
+
+    new Obstacle(newXs, newYs, newXs.length)
+  }
+
   private def getOverlappingObstacles(continuousEnvCell: ContinuousEnvCell, obstacles: List[Obstacle], x: Int, y: Int)
                                      (implicit config: ContinuousEnvConfig): List[Obstacle] = {
-    val cellOutline = continuousEnvCell.cellOutline
+
+  import org.locationtech.jts.geom.Coordinate
+
+  val cellOutline = continuousEnvCell.cellOutline
     val xScale = y
     val yScale = config.worldWidth - x - 1
 

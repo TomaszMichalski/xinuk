@@ -29,11 +29,12 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
   private def signalMapToSignalVec(signalMap: SignalMap): SignalVector = {
     signalMap.value
-      .map ({
+      .map({
         case (direction: GridDirection, signal) => directionSignalToSignalVec(direction, signal)
         case (_: Direction, _) => SignalVector(0d, 0d)
       })
       .foldLeft(SignalVector.zero)(_ + _)
+      .normalize
   }
 
   private def directionSignalToSignalVec(direction: GridDirection, signal: Signal): SignalVector = {

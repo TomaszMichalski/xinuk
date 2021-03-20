@@ -195,22 +195,22 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         val xs = Array(segment.a, segment.a, segment.b, segment.b)
         val ys = Array(0, 1, 1, 0).map(y => y + config.cellSize)
 
-        new Obstacle(xs, ys, 4)
+        Obstacle(xs, ys, 4)
       case Right =>
         val xs = Array(0, 1, 1, 0).map(x => x + config.cellSize)
         val ys = Array(segment.b, segment.b, segment.a, segment.a)
 
-        new Obstacle(xs, ys, 4)
+        Obstacle(xs, ys, 4)
       case Bottom =>
         val xs = Array(segment.a, segment.b, segment.b, segment.a)
         val ys = Array(0, 0, -1, -1)
 
-        new Obstacle(xs, ys, 4)
+        Obstacle(xs, ys, 4)
       case Left =>
         val xs = Array(0, -1, -1, 0)
         val ys = Array(segment.a, segment.a, segment.b, segment.b)
 
-        new Obstacle(xs, ys, 4)
+        Obstacle(xs, ys, 4)
       case _ => null
     }
   }
@@ -243,7 +243,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         newYs = newYs :+ coordinate.y.intValue
       })
 
-    new Obstacle(newXs, newYs, newXs.length)
+    Obstacle(newXs, newYs, newXs.length)
   }
 
   private def getOverlappingObstacles(continuousEnvCell: ContinuousEnvCell, obstacles: List[Obstacle], x: Int, y: Int)
@@ -281,7 +281,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     xs = xs.dropRight(1)
     ys = ys.dropRight(1)
 
-    new Obstacle(xs, ys, xs.length)
+    Obstacle(xs, ys, xs.length)
   }
 
   private def overlapsWithAny(obstacle: Obstacle, obstaclesGroup: Array[Obstacle]): Boolean = {
@@ -374,7 +374,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       }
     }
 
-    new Obstacle(newXs, newYs, newXs.length)
+    Obstacle(newXs, newYs, newXs.length)
   }
 
   private def isLyingInsideCellOutline(cellOutline: CellOutline, x: Int, y: Int, cellX: Int, cellY: Int)
@@ -480,7 +480,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       localObstaclePointsY = localObstaclePointsY :+ localY
     }
 
-    new Obstacle(localObstaclePointsX, localObstaclePointsY, localObstaclePointsX.length)
+    Obstacle(localObstaclePointsX, localObstaclePointsY, localObstaclePointsX.length)
   }
 
   private def findNextTrueBeforeFalse(flags: Array[Boolean], start: Int): Int = {

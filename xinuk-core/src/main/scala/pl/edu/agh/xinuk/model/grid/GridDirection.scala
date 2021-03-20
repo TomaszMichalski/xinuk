@@ -11,6 +11,12 @@ sealed class GridDirection(private val xShift: Int, private val yShift: Int) ext
   def opposite: GridDirection = GridDirection.opposite(this)
 
   def adjacent: Seq[GridDirection] = GridDirection.adjacent(this)
+
+  def shift: (Int, Int) = (xShift, yShift)
+
+  def isCardinal: Boolean = GridDirection.isCardinal(this)
+
+  def isDiagonal: Boolean = GridDirection.isDiagonal(this)
 }
 
 object GridDirection {
@@ -32,7 +38,19 @@ object GridDirection {
     Seq(values((idx - 1 + values.size) % values.size), values((idx + 1) % values.size))
   }
 
+  private def isCardinal(direction: GridDirection): Boolean = {
+    cardinal.contains(direction)
+  }
+
+  private def isDiagonal(direction: GridDirection): Boolean = {
+    diagonal.contains(direction)
+  }
+
   implicit def values: Seq[GridDirection] = Seq(Top, TopRight, Right, BottomRight, Bottom, BottomLeft, Left, TopLeft)
+
+  implicit def cardinal: Seq[GridDirection] = Seq(Top, Right, Bottom, Left)
+
+  implicit def diagonal: Seq[GridDirection] = Seq(TopRight, BottomRight, BottomLeft, TopLeft)
 
   case object Top extends GridDirection(-1, 0)
 

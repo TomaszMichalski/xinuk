@@ -30,13 +30,14 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
     val multiCellIdMap: MutableMap[GridCellId, Int] = MutableMap.empty
     val cellOutlineMap: MutableMap[GridMultiCellId, CellOutline] = MutableMap.empty.withDefault(_ => CellOutline.default())
-    var cellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
+    val cellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
+    val finalCellQueue: mutable.Queue[GridMultiCellId] = mutable.Queue.empty
 
     for {
       x <- 0 until config.worldWidth
       y <- 0 until config.worldHeight
     } {
-      cellQueue += GridMultiCellId(x, y, 0)
+      cellQueue.enqueue(GridMultiCellId(x, y, 0))
       multiCellIdMap(GridCellId(x, y)) = 0
     }
 
@@ -100,19 +101,118 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
         }
 
         if (!cellDivided) {
-          val obstaclesInCell = mergeToObstacles(obstaclesGroups, x, y)
-          continuousEnvCell.obstacles = obstaclesInCell
-
+          continuousEnvCell.obstacles = mergeToLocalObstacles(obstaclesGroups, x, y)
           continuousEnvCell.neighbourhood = updateNeighbourhoodWithObstacles(continuousEnvCell)
 
           worldBuilder.updateNeighbourhood(gridMultiCellId, continuousEnvCell.neighbourhood)
+
+          finalCellQueue.enqueue(gridMultiCellId)
         }
       }
 
       worldBuilder(gridMultiCellId) = CellState(continuousEnvCell)
     }
 
+    while (finalCellQueue.nonEmpty) {
+      val gridMultiCellId = finalCellQueue.dequeue()
+      val continuousEnvCell: ContinuousEnvCell = worldBuilder(gridMultiCellId).state.contents.asInstanceOf[ContinuousEnvCell]
+
+      val boundaryObstacles = getBoundaryObstacles(continuousEnvCell)
+      val allObstacles = boundaryObstacles ++ continuousEnvCell.obstacles
+
+      if (boundaryObstacles.nonEmpty) {
+        var obstaclesGroups: Array[Array[Obstacle]] = Array()
+
+        for (obstacle <- allObstacles) {
+          var obstaclesToMerge = Array(obstacle)
+          var newObstaclesGroups: Array[Array[Obstacle]] = Array()
+          for (existingObstacleGroup <- obstaclesGroups) {
+            if (overlapsWithAny(obstacle, existingObstacleGroup)) {
+              obstaclesToMerge = obstaclesToMerge ++ existingObstacleGroup
+            } else {
+              newObstaclesGroups = newObstaclesGroups :+ existingObstacleGroup
+            }
+          }
+          newObstaclesGroups = newObstaclesGroups :+ obstaclesToMerge
+          obstaclesGroups = newObstaclesGroups
+        }
+
+        val obstaclesInCell = mergeToObstacles(obstaclesGroups)
+        continuousEnvCell.obstacles = obstaclesInCell
+
+        worldBuilder(gridMultiCellId) = CellState(continuousEnvCell)
+      }
+    }
+
     worldBuilder
+  }
+
+  private def getBoundaryObstacles(cell: ContinuousEnvCell)
+                                  (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
+    cell.neighbourhood.cardinalNeighbourhood
+      .map { case (direction, boundary) => getBoundaryObstaclesInDirection(direction, boundary) }
+      .flatten
+      .toArray
+  }
+
+  private def getBoundaryObstaclesInDirection(direction: GridDirection, boundary: Boundary)
+                                             (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
+    getNonBoundarySegments(boundary)
+      .map(segment => getBoundaryObstacleInDirection(direction, segment))
+  }
+
+  private def getNonBoundarySegments(boundary: Boundary)
+                                    (implicit config: ContinuousEnvConfig): Array[Segment] = {
+    var nonBoundarySegments: Array[Segment] = Array(Segment(0, config.cellSize))
+
+    for (boundarySegment <- boundary.boundaries.keys) {
+      var newNonBoundarySegments: Array[Segment] = Array()
+      for (nonBoundarySegment <- nonBoundarySegments) {
+        if (nonBoundarySegment.a < boundarySegment.a && nonBoundarySegment.b > boundarySegment.b) {
+          val leftSegment = Segment(nonBoundarySegment.a, boundarySegment.a)
+          val rightSegment = Segment(boundarySegment.b, nonBoundarySegment.b)
+          newNonBoundarySegments = newNonBoundarySegments :+ leftSegment :+ rightSegment
+        } else if (nonBoundarySegment.a < boundarySegment.a && nonBoundarySegment.b <= boundarySegment.b) {
+          val leftSegment = Segment(nonBoundarySegment.a, boundarySegment.a)
+          newNonBoundarySegments = newNonBoundarySegments :+ leftSegment
+        } else if (nonBoundarySegment.a >= boundarySegment.a && nonBoundarySegment.b > boundarySegment.b) {
+          val rightSegment = Segment(boundarySegment.b, nonBoundarySegment.b)
+          newNonBoundarySegments = newNonBoundarySegments :+ rightSegment
+        } else if (nonBoundarySegment.a >= boundarySegment.a && nonBoundarySegment.b <= boundarySegment.b) {
+          // nothing
+        }
+      }
+      nonBoundarySegments = newNonBoundarySegments
+    }
+
+    nonBoundarySegments
+  }
+
+  private def getBoundaryObstacleInDirection(direction: GridDirection, segment: Segment)
+                                            (implicit config: ContinuousEnvConfig): Obstacle = {
+    direction match {
+      case Top =>
+        val xs = Array(segment.a, segment.a, segment.b, segment.b)
+        val ys = Array(0, 1, 1, 0).map(y => y + config.cellSize)
+
+        new Obstacle(xs, ys, 4)
+      case Right =>
+        val xs = Array(0, 1, 1, 0).map(x => x + config.cellSize)
+        val ys = Array(segment.b, segment.b, segment.a, segment.a)
+
+        new Obstacle(xs, ys, 4)
+      case Bottom =>
+        val xs = Array(segment.a, segment.b, segment.b, segment.a)
+        val ys = Array(0, 0, -1, -1)
+
+        new Obstacle(xs, ys, 4)
+      case Left =>
+        val xs = Array(0, -1, -1, 0)
+        val ys = Array(segment.a, segment.a, segment.b, segment.b)
+
+        new Obstacle(xs, ys, 4)
+      case _ => null
+    }
   }
 
   private def bufferObstacles(obstacles: List[Obstacle])
@@ -148,9 +248,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
   private def getOverlappingObstacles(continuousEnvCell: ContinuousEnvCell, obstacles: List[Obstacle], x: Int, y: Int)
                                      (implicit config: ContinuousEnvConfig): List[Obstacle] = {
-
-  import org.locationtech.jts.geom.Coordinate
-
   val cellOutline = continuousEnvCell.cellOutline
     val xScale = y
     val yScale = config.worldWidth - x - 1
@@ -602,11 +699,15 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     hasSameDiagonalNeighbourhood && hasSameCardinalNeighbourhood
   }
 
-  private def mergeToObstacles(obstaclesGroups: Array[Array[Obstacle]], cellX: Int, cellY: Int)
-                              (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
+  private def mergeToLocalObstacles(obstaclesGroups: Array[Array[Obstacle]], cellX: Int, cellY: Int)
+                                   (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
+    mergeToObstacles(obstaclesGroups)
+      .map(obstacle => toLocalObstacle(obstacle, cellX, cellY))
+  }
+
+  private def mergeToObstacles(obstaclesGroups: Array[Array[Obstacle]]): Array[Obstacle] = {
     obstaclesGroups
       .map(group => mergeToObstacle(group))
-      .map(obstacle => toLocalObstacle(obstacle, cellX, cellY))
   }
 
   private def updateNeighbourhoodWithObstacles(continuousEnvCell: ContinuousEnvCell): Neighbourhood = {

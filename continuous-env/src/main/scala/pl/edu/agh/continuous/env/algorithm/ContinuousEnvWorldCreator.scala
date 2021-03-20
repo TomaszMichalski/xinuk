@@ -5,7 +5,7 @@ import org.locationtech.jts.operation.buffer.BufferParameters
 import org.slf4j.Logger
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
-import pl.edu.agh.continuous.env.model.continuous.{CellOutline, Obstacle}
+import pl.edu.agh.continuous.env.model.continuous.{Being, CellOutline, Obstacle}
 import pl.edu.agh.xinuk.algorithm.WorldCreator
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, Neighbourhood, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
@@ -116,6 +116,10 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     while (finalCellQueue.nonEmpty) {
       val gridMultiCellId = finalCellQueue.dequeue()
       val continuousEnvCell: ContinuousEnvCell = worldBuilder(gridMultiCellId).state.contents.asInstanceOf[ContinuousEnvCell]
+
+      if (gridMultiCellId.x == 2 && gridMultiCellId.y == 66) {
+        continuousEnvCell.being = Being(config.cellSize / 2, config.cellSize / 2, config.beingSpeed)
+      }
 
       val boundaryObstacles = getBoundaryObstacles(continuousEnvCell)
       val allObstacles = boundaryObstacles ++ continuousEnvCell.obstacles

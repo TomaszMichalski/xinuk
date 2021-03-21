@@ -5,7 +5,7 @@ import org.locationtech.jts.operation.buffer.BufferParameters
 import org.slf4j.Logger
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
-import pl.edu.agh.continuous.env.model.continuous.{Being, CellOutline, Obstacle}
+import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, CellOutline, Obstacle}
 import pl.edu.agh.xinuk.algorithm.WorldCreator
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, Neighbourhood, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
@@ -77,6 +77,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
           obstaclesGroups = newObstaclesGroups
 
           if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge, x, y)) {
+            println("Cell division detected")
             val newCells = divideCells(continuousEnvCell, obstaclesToMerge, x, y)
               .filter(cell => !hasEmptyNeighbourhood(cell))
               .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
@@ -121,6 +122,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
       if (gridMultiCellId.x == 10 && gridMultiCellId.y == 50) {
         continuousEnvCell.being = Being(config.cellSize / 2, config.cellSize / 2, config.beingSpeed)
+        continuousEnvCell.beingMetadata = BeingMetadata.initial
       }
 
       val boundaryObstacles = getBoundaryObstacles(continuousEnvCell)
@@ -145,9 +147,9 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
         val obstaclesInCell = mergeToObstacles(obstaclesGroups)
         continuousEnvCell.obstacles = obstaclesInCell
-
-        worldBuilder(gridMultiCellId) = CellState(continuousEnvCell)
       }
+
+      worldBuilder(gridMultiCellId) = CellState(continuousEnvCell)
     }
 
     worldBuilder
@@ -156,20 +158,24 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   private def getBoundaryObstacles(cell: ContinuousEnvCell)
                                   (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
     cell.neighbourhood.cardinalNeighbourhood
-      .map { case (direction, boundary) => getBoundaryObstaclesInDirection(direction, boundary) }
+      .map { case (direction, boundary) => getBoundaryObstaclesInDirection(direction, boundary, cell) }
       .flatten
       .toArray
   }
 
-  private def getBoundaryObstaclesInDirection(direction: GridDirection, boundary: Boundary)
+  private def getBoundaryObstaclesInDirection(direction: GridDirection, boundary: Boundary, cell: ContinuousEnvCell)
                                              (implicit config: ContinuousEnvConfig): Array[Obstacle] = {
-    getNonBoundarySegments(boundary)
-      .map(segment => getBoundaryObstacleInDirection(direction, segment))
+    getNonBoundarySegments(boundary, direction, cell)
+      .map(segment => getBoundaryObstacleInDirection(direction, segment, cell))
   }
 
-  private def getNonBoundarySegments(boundary: Boundary)
+  private def getNonBoundarySegments(boundary: Boundary, direction: GridDirection, cell: ContinuousEnvCell)
                                     (implicit config: ContinuousEnvConfig): Array[Segment] = {
-    var nonBoundarySegments: Array[Segment] = Array(Segment(0, config.cellSize))
+    var nonBoundarySegments: Array[Segment] = if (direction == Top || direction == Bottom) {
+      Array(Segment(cell.cellOutline.x, cell.cellOutline.x + cell.cellOutline.width))
+    } else {
+      Array(Segment(cell.cellOutline.y, cell.cellOutline.y + cell.cellOutline.height))
+    }
 
     for (boundarySegment <- boundary.boundaries.keys) {
       var newNonBoundarySegments: Array[Segment] = Array()
@@ -194,26 +200,26 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     nonBoundarySegments
   }
 
-  private def getBoundaryObstacleInDirection(direction: GridDirection, segment: Segment)
+  private def getBoundaryObstacleInDirection(direction: GridDirection, segment: Segment, cell: ContinuousEnvCell)
                                             (implicit config: ContinuousEnvConfig): Obstacle = {
     direction match {
       case Top =>
         val xs = Array(segment.a, segment.a, segment.b, segment.b)
-        val ys = Array(0, 1, 1, 0).map(y => y + config.cellSize)
+        val ys = Array(0, 1, 1, 0).map(y => y + cell.cellOutline.y + cell.cellOutline.height)
 
         Obstacle(xs, ys, 4)
       case Right =>
-        val xs = Array(0, 1, 1, 0).map(x => x + config.cellSize)
+        val xs = Array(0, 1, 1, 0).map(x => x + cell.cellOutline.x + cell.cellOutline.width)
         val ys = Array(segment.b, segment.b, segment.a, segment.a)
 
         Obstacle(xs, ys, 4)
       case Bottom =>
         val xs = Array(segment.a, segment.b, segment.b, segment.a)
-        val ys = Array(0, 0, -1, -1)
+        val ys = Array(0, 0, -1, -1).map(y => y + cell.cellOutline.y)
 
         Obstacle(xs, ys, 4)
       case Left =>
-        val xs = Array(0, -1, -1, 0)
+        val xs = Array(0, -1, -1, 0).map(x => x + cell.cellOutline.x)
         val ys = Array(segment.a, segment.a, segment.b, segment.b)
 
         Obstacle(xs, ys, 4)

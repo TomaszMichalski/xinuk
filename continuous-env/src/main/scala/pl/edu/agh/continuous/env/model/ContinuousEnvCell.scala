@@ -14,5 +14,5 @@ final case class ContinuousEnvCell(initialSignal: Signal)(implicit config: Conti
   var neighbourhood: Neighbourhood = Neighbourhood.empty()
   var obstacles: Array[Obstacle] = Array()
   var being: Being = _
-  var beingMetadata: BeingMetadata = _
+  var beingMetadata: BeingMetadata = BeingMetadata.initial
 }

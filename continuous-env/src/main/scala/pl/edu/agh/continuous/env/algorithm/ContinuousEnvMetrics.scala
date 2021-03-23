@@ -16,7 +16,6 @@ final case class ContinuousEnvMetrics(obstacleHits: Long,
 
   override def +(other: Metrics): ContinuousEnvMetrics = {
     other match {
-      case ContinuousEnvMetrics.Empty => this
       case ContinuousEnvMetrics(otherObstacleHits, otherCellTransitions) =>
         ContinuousEnvMetrics(
           obstacleHits + otherObstacleHits,

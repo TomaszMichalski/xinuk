@@ -1,9 +1,10 @@
 package pl.edu.agh.continuous.env.algorithm
 
+import pl.edu.agh.continuous.env.algorithm.ContinuousEnvUpdateTag.{Arrive, Leave, Stay}
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
-import pl.edu.agh.continuous.env.model.continuous.{Being, SignalVector}
-import pl.edu.agh.xinuk.algorithm.{PlanCreator, Plans}
+import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, SignalVector}
+import pl.edu.agh.xinuk.algorithm.{Plan, PlanCreator, Plans}
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, NeighbourhoodState, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
@@ -19,33 +20,44 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     }
   }
 
-  private def processMovement(continuousEnvCell: ContinuousEnvCell, cellState: CellState, neighbourhoodState: NeighbourhoodState): (Plans, ContinuousEnvMetrics) = {
-    if (continuousEnvCell.being == null) {
-      (Plans.empty, ContinuousEnvMetrics.empty)
-    } else {
-      val signalVector = signalMapToSignalVec(cellState.signalMap)
+  private def processMovement(continuousEnvCell: ContinuousEnvCell, cellState: CellState, neighbourhoodState: NeighbourhoodState)
+                             (implicit config: ContinuousEnvConfig): (Plans, ContinuousEnvMetrics) = {
+    val plans: Plans = if (continuousEnvCell.being == null) {
+        Plans.empty
+      } else {
+        val signalVector = signalMapToSignalVec(cellState.signalMap)
 
-      if (signalVector != SignalVector.zero) {
-        if (continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
-
-        } else {
-          val (obstacleIndex, segmentIndex) = findNearestObstacle(continuousEnvCell, signalVector)
-
-          if (obstacleIndex != -1) {
+        if (signalVector != SignalVector.zero) {
+          if (continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
             // TODO
+            Plans.empty
           } else {
-            continuousEnvCell.being = moveBeing(continuousEnvCell, signalVector)
+            val (obstacleIndex, segmentIndex) = findNearestObstacle(continuousEnvCell, signalVector)
 
-            if (isOnBorder(continuousEnvCell)) {
-              val neighbour = getNeighbourInPosition(continuousEnvCell)
+            if (obstacleIndex != -1) {
               // TODO
+              Plans.empty
+            } else {
+              continuousEnvCell.being = moveBeing(continuousEnvCell, signalVector)
+
+              if (isOnBorder(continuousEnvCell)) {
+                val neighbour = getNeighbourInPosition(continuousEnvCell)
+
+                Plans(Map((neighbour, Seq(Plan(
+                  Arrive(continuousEnvCell),
+                  Leave(continuousEnvCell),
+                  Stay(continuousEnvCell)
+                )))))
+              } else {
+                Plans.empty
+              }
             }
           }
+        } else {
+          Plans.empty
         }
-      }
-
-      (Plans.empty, ContinuousEnvMetrics.empty) // TODO
     }
+    (plans, ContinuousEnvMetrics.empty) // TODO
   }
 
   private def signalMapToSignalVec(signalMap: SignalMap): SignalVector = {

@@ -3,14 +3,19 @@ package pl.edu.agh.continuous.env.algorithm
 import pl.edu.agh.continuous.env.algorithm.ContinuousEnvUpdateTag.{Arrive, Leave, Stay}
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
-import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, SignalVector}
+import pl.edu.agh.continuous.env.model.continuous.MovementDirection.MovementDirection
+import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, MovementDirection, Obstacle, ObstacleSegment, SignalVector}
 import pl.edu.agh.xinuk.algorithm.{Plan, PlanCreator, Plans}
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, NeighbourhoodState, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 import pl.edu.agh.xinuk.model.{CellId, CellState, Direction, Signal, SignalMap}
 
+import scala.util.Random
+
 final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvConfig] {
+
+  private val random = new Random(System.nanoTime())
 
   override def createPlans(iteration: Long, cellId: CellId, cellState: CellState, neighbourhoodState: NeighbourhoodState)
                           (implicit config: ContinuousEnvConfig): (Plans, ContinuousEnvMetrics) = {
@@ -159,5 +164,31 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
   private def containsPosition(segment: Segment, position: Double): Boolean = {
     position >= segment.a.doubleValue && position <= segment.b.doubleValue
+  }
+
+  private def getObstacleSegment(cell: ContinuousEnvCell, obstacleIndex: Int, segmentIndex: Int): ObstacleSegment = {
+    val obstacle = cell.obstacles(obstacleIndex)
+    val a = (obstacle.xs(segmentIndex), obstacle.ys(segmentIndex))
+    val b = (obstacle.xs((segmentIndex + 1) % obstacle.points), obstacle.ys((segmentIndex + 1) % obstacle.points))
+    ObstacleSegment(a, b)
+  }
+
+  private def getMovementDirectionAfterObstacleHit(cell: ContinuousEnvCell, obstacleIndex: Int, segmentIndex: Int, signalVector: SignalVector): MovementDirection = {
+    val obstacleSegment = getObstacleSegment(cell, obstacleIndex, segmentIndex)
+    val segmentVector = ((obstacleSegment.b._1 - obstacleSegment.a._1).doubleValue, (obstacleSegment.b._2 - obstacleSegment.a._2).doubleValue)
+    val directionIndicator = signalVector.x * segmentVector._1 + signalVector.y + segmentVector._2
+    if (directionIndicator > 0d) {
+      MovementDirection.Clockwise
+    } else if (directionIndicator < 0d) {
+      MovementDirection.CounterClockwise
+    } else if (directionIndicator == 0d) {
+      if (random.nextDouble() > 0.5d) {
+        MovementDirection.Clockwise
+      } else {
+        MovementDirection.CounterClockwise
+      }
+    }
+
+    MovementDirection.Clockwise // should not reach this place
   }
 }

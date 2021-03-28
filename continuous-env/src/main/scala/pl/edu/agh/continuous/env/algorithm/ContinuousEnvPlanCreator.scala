@@ -39,13 +39,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
           while (movementLeft > eps) {
             val movementVector = getMovementVector(continuousEnvCell.being, signalVector, movementLeft)
             if (continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
-              if (canMoveFreely(continuousEnvCell, movementVector)) {
-                continuousEnvCell.beingMetadata.isMovingAroundObstacle
-              } else if (hasNoPossibilityToMove(continuousEnvCell, movementVector)) {
-                movementLeft = 0d
-              } else { // continue movement around obstacle
-                // TODO
-              }
+              // TODO
             } else {
               val (obstacleIndex, segmentIndex) = findNearestObstacle(continuousEnvCell, movementVector)
 
@@ -223,29 +217,5 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     }
 
     MovementDirection.Clockwise // should not reach this place
-  }
-
-  private def atan2(movementVector: MovementVector, obstacleSegment: ObstacleSegment): Double = {
-    math.atan2(movementVector.x * obstacleSegment.y - movementVector.y * obstacleSegment.x, movementVector.x * obstacleSegment.x + movementVector.y * obstacleSegment.y)
-  }
-
-  private def canMoveFreely(cell: ContinuousEnvCell, movementVector: MovementVector): Boolean = {
-    val obstacleSegment = getObstacleSegment(cell, cell.beingMetadata.obstacleIndex, cell.beingMetadata.obstacleSegmentIndex)
-    val atan2Indicator = atan2(movementVector, obstacleSegment)
-    cell.beingMetadata.movementDirection match {
-      case Clockwise => atan2Indicator < 0d
-      case CounterClockwise => atan2Indicator > 0d
-      case _ => false
-    }
-  }
-
-  private def hasNoPossibilityToMove(cell: ContinuousEnvCell, movementVector: MovementVector): Boolean = {
-    val obstacleSegment = getObstacleSegment(cell, cell.beingMetadata.obstacleIndex, cell.beingMetadata.obstacleSegmentIndex)
-    val atan2Indicator = atan2(movementVector, obstacleSegment)
-    cell.beingMetadata.movementDirection match {
-      case Clockwise => atan2Indicator > math.Pi / 2 && atan2Indicator < math.Pi
-      case CounterClockwise => atan2Indicator < -math.Pi / 2 && atan2Indicator > -math.Pi
-      case _ => false
-    }
   }
 }

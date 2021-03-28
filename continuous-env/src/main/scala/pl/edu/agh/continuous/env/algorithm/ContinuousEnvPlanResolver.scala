@@ -5,7 +5,7 @@ import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata}
 import pl.edu.agh.xinuk.algorithm.{PlanResolver, StateUpdate}
-import pl.edu.agh.xinuk.model.CellContents
+import pl.edu.agh.xinuk.model.{CellContents, Signal}
 
 final case class ContinuousEnvPlanResolver() extends PlanResolver[ContinuousEnvConfig] {
   override def isUpdateValid(contents: CellContents, update: StateUpdate)(implicit config: ContinuousEnvConfig): Boolean =
@@ -23,8 +23,12 @@ final case class ContinuousEnvPlanResolver() extends PlanResolver[ContinuousEnvC
         oldCell.beingMetadata = BeingMetadata.initial
         (oldCell, ContinuousEnvMetrics.empty)
       case (newCell: ContinuousEnvCell, Arrive, oldCell: ContinuousEnvCell) =>
-        newCell.being = translateBeing(oldCell.being)
-        (newCell, ContinuousEnvMetrics.cellTransition)
+        if (newCell.initialSignal == Signal.zero) {
+          newCell.being = translateBeing(oldCell.being)
+          (newCell, ContinuousEnvMetrics.cellTransition)
+        } else {
+          (newCell, ContinuousEnvMetrics.sourceReached)
+        }
       case (_: ContinuousEnvCell, Stay, oldCell: ContinuousEnvCell) =>
         (oldCell, ContinuousEnvMetrics.empty)
 

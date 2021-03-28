@@ -36,7 +36,7 @@ object ContinuousEnvMain extends LazyLogging {
 
   private def cellToColorSign(cellState: CellState, continuousEnvCell: ContinuousEnvCell): Color = {
     if (continuousEnvCell.being != null) {
-      Color.YELLOW
+      Color.GREEN
     } else if (continuousEnvCell.initialSignal.value > 0) {
       Color.BLUE
     } else {

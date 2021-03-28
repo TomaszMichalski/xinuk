@@ -4,7 +4,7 @@ import pl.edu.agh.continuous.env.algorithm.ContinuousEnvUpdateTag.{Arrive, Leave
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.MovementDirection.{Clockwise, CounterClockwise, MovementDirection}
-import pl.edu.agh.continuous.env.model.continuous.{Being, MovementDirection, MovementVector, Obstacle, ObstacleSegment, SignalVector}
+import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, MovementDirection, MovementVector, Obstacle, ObstacleSegment, SignalVector}
 import pl.edu.agh.xinuk.algorithm.{Plan, PlanCreator, Plans}
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, NeighbourhoodState, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection
@@ -41,9 +41,14 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
             if (continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
               // TODO
             } else {
-              val (obstacleIndex, segmentIndex) = findNearestObstacle(continuousEnvCell, movementVector)
+              val (obstacleIndex, segmentIndex, intersectionPoint) = findNearestObstacle(continuousEnvCell, movementVector)
               if (obstacleIndex != -1) {
-                // TODO
+                val (newBeing, movementLength) = moveBeingToObstacle(continuousEnvCell, intersectionPoint)
+                val movementDirection = getMovementDirectionAfterObstacleHit(continuousEnvCell, obstacleIndex, segmentIndex, movementVector)
+                val newBeingMetadata = BeingMetadata(true, movementDirection, obstacleIndex, segmentIndex)
+                continuousEnvCell.being = newBeing
+                continuousEnvCell.beingMetadata = newBeingMetadata
+                movementLeft = movementLeft - movementLength
               } else {
                 val (newBeing, movementLength) = moveBeing(continuousEnvCell, movementVector)
                 continuousEnvCell.being = newBeing
@@ -86,21 +91,20 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     }
   }
 
-  private def findNearestObstacle(cell: ContinuousEnvCell, movementVector: MovementVector): (Int, Int) = {
+  private def findNearestObstacle(cell: ContinuousEnvCell, movementVector: MovementVector): (Int, Int, (Double, Double)) = {
     cell.obstacles
       .zipWithIndex
       .map { case (obstacle, obstacleIndex) => getClosestSegmentIndex(cell.being, movementVector, obstacle, obstacleIndex) }
       .filter { case (_, segmentIndex, _) => segmentIndex != -1 }
       .sortBy(_._3)
-      .map { case (obstacleIndex, segmentIndex, _) => (obstacleIndex, segmentIndex) }
       .headOption
-      .getOrElse((-1, -1))
+      .getOrElse((-1, -1, (0d, 0d)))
   }
 
-  private def getClosestSegmentIndex(being: Being, movementVector: MovementVector, obstacle: Obstacle, obstacleIndex: Int): (Int, Int, Double) = {
+  private def getClosestSegmentIndex(being: Being, movementVector: MovementVector, obstacle: Obstacle, obstacleIndex: Int): (Int, Int, (Double, Double)) = {
     // TODO
 
-    (obstacleIndex, -1, 0d)
+    (obstacleIndex, -1, (0d, 0d))
   }
 
   private def getMovementVector(being: Being, signalVector: SignalVector, movementLeft: Double): MovementVector = {
@@ -112,6 +116,12 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
   private def moveBeing(cell: ContinuousEnvCell, movementVector: MovementVector): (Being, Double) = {
     val newX = math.max(cell.cellOutline.x.doubleValue, math.min(cell.being.x + movementVector.x, (cell.cellOutline.x + cell.cellOutline.width).doubleValue))
     val newY = math.max(cell.cellOutline.y.doubleValue, math.min(cell.being.y + movementVector.y, (cell.cellOutline.y + cell.cellOutline.height).doubleValue))
+    (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
+  }
+
+  private def moveBeingToObstacle(cell: ContinuousEnvCell, intersectionPoint: (Double, Double)): (Being, Double) = {
+    val newX = intersectionPoint._1
+    val newY = intersectionPoint._2
     (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
   }
 

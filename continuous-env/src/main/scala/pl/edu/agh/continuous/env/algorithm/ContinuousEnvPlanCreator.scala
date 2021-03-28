@@ -16,7 +16,7 @@ import scala.util.Random
 final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvConfig] {
 
   private val random = new Random(System.nanoTime())
-  private val eps = 10e-6
+  private val eps = 1e-6
 
   override def createPlans(iteration: Long, cellId: CellId, cellState: CellState, neighbourhoodState: NeighbourhoodState)
                           (implicit config: ContinuousEnvConfig): (Plans, ContinuousEnvMetrics) = {
@@ -42,7 +42,6 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
               // TODO
             } else {
               val (obstacleIndex, segmentIndex) = findNearestObstacle(continuousEnvCell, movementVector)
-
               if (obstacleIndex != -1) {
                 // TODO
               } else {
@@ -100,7 +99,6 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
   private def getClosestSegmentIndex(being: Being, movementVector: MovementVector, obstacle: Obstacle, obstacleIndex: Int): (Int, Int, Double) = {
     // TODO
-
 
     (obstacleIndex, -1, 0d)
   }
@@ -208,14 +206,12 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
       MovementDirection.Clockwise
     } else if (directionIndicator < 0d) {
       MovementDirection.CounterClockwise
-    } else if (directionIndicator == 0d) {
+    } else {
       if (random.nextDouble() > 0.5d) {
         MovementDirection.Clockwise
       } else {
         MovementDirection.CounterClockwise
       }
     }
-
-    MovementDirection.Clockwise // should not reach this place
   }
 }

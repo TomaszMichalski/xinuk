@@ -4,8 +4,8 @@ import pl.edu.agh.continuous.env.algorithm.ContinuousEnvUpdateTag.{Arrive, Leave
 import pl.edu.agh.continuous.env.config.ContinuousEnvConfig
 import pl.edu.agh.continuous.env.model.ContinuousEnvCell
 import pl.edu.agh.continuous.env.model.continuous.MovementDecision.{Free, MovementDecision, SlideBackward, SlideForward, Stuck}
-import pl.edu.agh.continuous.env.model.continuous.MovementDirection.{Clockwise, CounterClockwise, MovementDirection}
-import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, MovementDirection, MovementVector, Obstacle, ObstacleSegment, SignalVector, Vector}
+import pl.edu.agh.continuous.env.model.continuous.MovementDirection.{Clockwise, CounterClockwise, MovementDirection, None}
+import pl.edu.agh.continuous.env.model.continuous.{Being, BeingMetadata, MovementDecision, MovementDirection, MovementVector, Obstacle, ObstacleSegment, SignalVector, Vector}
 import pl.edu.agh.xinuk.algorithm.{Plan, PlanCreator, Plans}
 import pl.edu.agh.xinuk.model.continuous.{Boundary, GridMultiCellId, NeighbourhoodState, Segment}
 import pl.edu.agh.xinuk.model.grid.GridDirection
@@ -33,8 +33,8 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     var plans: Plans = Plans.empty
 
     if (continuousEnvCell.being != null) {
-        val signalVector = signalMapToSignalVec(cellState.signalMap)
-        // val signalVector = SignalVector(2.0, -2.0)
+        // val signalVector = signalMapToSignalVec(cellState.signalMap)
+        val signalVector = SignalVector(2.0, -2.0)
 
         if (signalVector != SignalVector.zero) {
           var movementLeft = signalVector.length * continuousEnvCell.being.speed
@@ -42,12 +42,51 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
           while (movementLeft > eps) {
             val movementVector = getMovementVector(continuousEnvCell.being, signalVector, movementLeft)
             if (continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
-              if (isInBeginningOfObstacleSegment(continuousEnvCell)) {
-                val movementDecisionAngles = getMovementDecisionAnglesBeginning(continuousEnvCell)
-              } else { // is in the middle of obstacle segment
-                val movementDecisionAngles = getMovementDecisionAnglesMiddle(continuousEnvCell)
+              val (movementDecisionAngles, zeroVector) = if (isInBeginningOfObstacleSegment(continuousEnvCell)) {
+                getMovementDecisionAnglesBeginning(continuousEnvCell)
+              } else {
+                getMovementDecisionAnglesMiddle(continuousEnvCell)
               }
-            } else {
+
+              val decisionVector = Vector(signalVector.x, signalVector.y)
+
+              val decision = getDecision(movementDecisionAngles, decisionVector, zeroVector)
+
+              decision match {
+                case Free =>
+                  continuousEnvCell.beingMetadata = BeingMetadata.initial
+                case SlideForward =>
+                  val (newBeing, movementLength, movedToObstacleEnd) = moveBeingAlongObstacle(continuousEnvCell, movementVector)
+                  continuousEnvCell.being = newBeing
+                  if (isOnBorder(continuousEnvCell)) {
+                    val neighbour = getNeighbourInPosition(continuousEnvCell)
+                    continuousEnvCell.beingMetadata = BeingMetadata.initial
+
+                    plans = Plans(Map((neighbour, Seq(Plan(
+                      Arrive(continuousEnvCell),
+                      Leave(continuousEnvCell),
+                      Stay(continuousEnvCell)
+                    )))))
+                    movementLeft = 0d
+                  } else if (movedToObstacleEnd) {
+                    val oldBeingMetadata = continuousEnvCell.beingMetadata
+                    val nextObstacleSegmentIndex = getNextObstacleSegmentIndexInDirection(oldBeingMetadata.obstacleSegmentIndex, oldBeingMetadata.movementDirection, oldBeingMetadata.segmentsInObstacle)
+                    val newBeingMetadata = BeingMetadata(true, oldBeingMetadata.movementDirection, oldBeingMetadata.obstacleIndex, nextObstacleSegmentIndex, oldBeingMetadata.segmentsInObstacle)
+                    continuousEnvCell.beingMetadata = newBeingMetadata
+                    movementLeft = movementLeft - movementLength
+                  } else {
+                    movementLeft = movementLeft - movementVector.length
+                  }
+                case SlideBackward =>
+                  val oldBeingMetadata = continuousEnvCell.beingMetadata
+                  val newMovementDirection = getOppositeMovementDirection(oldBeingMetadata.movementDirection)
+                  val newBeingMetadata = BeingMetadata(true, newMovementDirection, oldBeingMetadata.obstacleIndex, oldBeingMetadata.obstacleSegmentIndex, oldBeingMetadata.segmentsInObstacle)
+                  continuousEnvCell.beingMetadata = newBeingMetadata
+                case Stuck =>
+                  movementLeft = 0d
+              }
+            }
+            if (!continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
               val (obstacleIndex, segmentIndex, intersectionPoint) = findNearestObstacle(continuousEnvCell, movementVector)
               if (obstacleIndex != -1) {
                 val (newBeing, movementLength) = moveBeingToObstacle(continuousEnvCell, intersectionPoint)
@@ -64,6 +103,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
                 if (isOnBorder(continuousEnvCell)) {
                   val neighbour = getNeighbourInPosition(continuousEnvCell)
+                  continuousEnvCell.beingMetadata = BeingMetadata.initial
 
                   plans = Plans(Map((neighbour, Seq(Plan(
                     Arrive(continuousEnvCell),
@@ -112,7 +152,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     math.abs(being.x - point._1) < eps && math.abs(being.y - point._2) < eps
   }
 
-  private def getMovementDecisionAnglesBeginning(cell: ContinuousEnvCell): Map[MovementDecision, Double] = {
+  private def getMovementDecisionAnglesBeginning(cell: ContinuousEnvCell): (Map[Double, MovementDecision], Vector) = {
     cell.beingMetadata.movementDirection match {
       case Clockwise =>
         val currentSegment = getObstacleSegment(cell, cell.beingMetadata.obstacleIndex, cell.beingMetadata.obstacleSegmentIndex)
@@ -124,18 +164,18 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
         val angleCurPrev = atan2Indicator(currentSegmentVector, prevSegmentVector)
 
         if (angleCurPrev < 180) {
-          Map(
+          (Map(
             0d -> Free,
             angleCurPrev -> SlideBackward,
             angleCurPrev + 90d -> Stuck,
             270d -> SlideForward
-          )
+          ), currentSegmentVector)
         } else {
-          Map(
+          (Map(
             0d -> Free,
             angleCurPrev -> SlideBackward,
             180 + angleCurPrev / 2 -> SlideForward
-          )
+          ), currentSegmentVector)
         }
 
       case CounterClockwise =>
@@ -148,41 +188,125 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
         val angleCurPrev = atan2Indicator(currentSegmentVector, prevSegmentVector)
 
         if (angleCurPrev < 180) {
-          Map(
+          (Map(
             0d -> SlideForward,
             angleCurPrev / 2 -> SlideBackward,
             angleCurPrev -> Free
-          )
+          ), currentSegmentVector)
         } else {
-          Map(
+          (Map(
             0d -> SlideForward,
             90d -> Stuck,
             angleCurPrev - 90d -> SlideBackward,
             angleCurPrev -> Free
-          )
+          ), currentSegmentVector)
         }
 
-      case _ => Map.empty
+      case _ => (Map.empty, Vector.zero)
     }
   }
 
-  private def getMovementDecisionAnglesMiddle(cell: ContinuousEnvCell): Map[MovementDecision, Double] = {
+  private def getMovementDecisionAnglesMiddle(cell: ContinuousEnvCell): (Map[Double, MovementDecision], Vector) = {
+    val zeroVector = obstacleSegmentToZeroVector(cell)
     cell.beingMetadata.movementDirection match {
-      case Clockwise => Map(
-        Free -> 0d,
-        SlideBackward -> 180d,
-        SlideForward -> 270d)
-      case CounterClockwise => Map(
-        SlideForward -> 0d,
-        SlideBackward -> 90d,
-        Free -> 180d
-      )
-      case _ => Map.empty
+      case Clockwise =>
+        (Map(
+          0d -> Free,
+          180d -> SlideBackward,
+          270d -> SlideForward), zeroVector)
+      case CounterClockwise =>
+        (Map(
+          0d -> SlideForward,
+          90d -> SlideBackward,
+          180d -> Free), zeroVector)
+      case _ => (Map.empty, zeroVector)
     }
+  }
+
+  private def obstacleSegmentToZeroVector(cell: ContinuousEnvCell): Vector = {
+    val currentSegment = getObstacleSegment(cell, cell.beingMetadata.obstacleIndex, cell.beingMetadata.obstacleSegmentIndex)
+    cell.beingMetadata.movementDirection match {
+      case Clockwise => toVector(currentSegment.a, currentSegment.b)
+      case CounterClockwise => toVector(currentSegment.b, currentSegment.a)
+      case _ => Vector.zero
+    }
+  }
+
+  private def getDecision(decisionAngles: Map[Double, MovementDecision], decisionVector: Vector, zeroVector: Vector): MovementDecision = {
+    val decisionAngle = atan2Indicator(zeroVector, decisionVector)
+    var chosenDecision = Stuck
+    for ((decisionThreshold, decision) <- decisionAngles) {
+      if (decisionAngle >= decisionThreshold) {
+        chosenDecision = decision
+      }
+    }
+
+    chosenDecision
+  }
+
+  private def getOppositeMovementDirection(movementDirection: MovementDirection): MovementDirection = {
+    if (movementDirection == Clockwise) {
+      CounterClockwise
+    } else if (movementDirection == CounterClockwise) {
+      Clockwise
+    } else {
+      None
+    }
+  }
+
+  private def moveBeingAlongObstacle(cell: ContinuousEnvCell, movementVector: MovementVector): (Being, Double, Boolean) = {
+    val obstacleSegmentVector = obstacleSegmentToZeroVector(cell)
+    val movementVectorAsVector = toVector(movementVector)
+    val factor = dot(movementVectorAsVector, obstacleSegmentVector) / obstacleSegmentVector.lengthSquared
+    val newMovementVectorAsVector = Vector(obstacleSegmentVector.x * factor, obstacleSegmentVector.y * factor)
+    val newMovementVector = toMovementVector(cell.being, newMovementVectorAsVector)
+    val nextVertex = getNextVertex(cell)
+    val remainingObstacleVector = getRemainingObstacleMovementVector(cell.being, nextVertex)
+
+    if (remainingObstacleVector.lengthSquared > newMovementVector.lengthSquared) { // being will not reach next vertex
+      val (newBeing, movementLength) = moveBeing(cell, newMovementVector)
+      (newBeing, movementLength, false)
+    } else {
+      val (newBeing, movementLength) = moveBeing(cell, remainingObstacleVector)
+      (newBeing, movementLength, true)
+    }
+  }
+
+  private def dot(first: Vector, second: Vector): Double = {
+    first.x * second.x + first.y * second.y
+  }
+
+  private def toMovementVector(being: Being, vector: Vector): MovementVector = {
+    MovementVector((being.x, being.y), (being.x + vector.x, being.y + vector.y))
+  }
+
+  private def getNextObstacleSegmentIndexInDirection(obstacleSegmentIndex: Int, movementDirection: MovementDirection, segmentsInObstacle: Int): Int = {
+    movementDirection match {
+      case Clockwise => (obstacleSegmentIndex + 1) % segmentsInObstacle
+      case CounterClockwise => (obstacleSegmentIndex + segmentsInObstacle - 1) % segmentsInObstacle
+      case _ => -1
+    }
+  }
+
+  private def getNextVertex(cell: ContinuousEnvCell): (Double, Double) = {
+    val currentSegment = getObstacleSegment(cell, cell.beingMetadata.obstacleIndex, cell.beingMetadata.obstacleSegmentIndex)
+    cell.beingMetadata.movementDirection match {
+      case Clockwise => (currentSegment.b._1.doubleValue, currentSegment.b._2.doubleValue)
+      case CounterClockwise => (currentSegment.a._1.doubleValue, currentSegment.a._2.doubleValue)
+      case _ => (0d, 0d)
+    }
+  }
+
+  private def getRemainingObstacleMovementVector(being: Being, nextVertex: (Double, Double)): MovementVector = {
+    MovementVector((being.x, being.y), nextVertex)
   }
 
   private def toVector(start: (Int, Int), end: (Int, Int)): Vector = {
     Vector(end._1.doubleValue - start._1.doubleValue, end._2.doubleValue - start._2.doubleValue)
+  }
+
+  private def toVector(movementVector: MovementVector): Vector = {
+    Vector(movementVector.x, movementVector.y)
   }
 
   private def atan2Indicator(first: Vector, second: Vector): Double = {

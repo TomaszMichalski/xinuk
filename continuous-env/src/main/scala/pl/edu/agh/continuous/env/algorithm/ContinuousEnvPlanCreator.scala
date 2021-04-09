@@ -85,8 +85,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
                 case Stuck =>
                   movementLeft = 0d
               }
-            }
-            if (!continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
+            } else if (!continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
               val (obstacleIndex, segmentIndex, intersectionPoint) = findNearestObstacle(continuousEnvCell, movementVector)
               if (obstacleIndex != -1) {
                 val (newBeing, movementLength) = moveBeingToObstacle(continuousEnvCell, intersectionPoint)

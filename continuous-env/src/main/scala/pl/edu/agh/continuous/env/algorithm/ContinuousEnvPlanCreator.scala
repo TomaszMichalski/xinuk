@@ -12,7 +12,7 @@ import pl.edu.agh.xinuk.model.grid.GridDirection
 import pl.edu.agh.xinuk.model.grid.GridDirection.{Bottom, BottomLeft, BottomRight, Left, Right, Top, TopLeft, TopRight}
 import pl.edu.agh.xinuk.model.{CellId, CellState, Direction, Signal, SignalMap}
 
-import scala.math.{Pi, atan2}
+import scala.math.{Pi, atan2, ceil}
 import scala.util.Random
 
 final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvConfig] {
@@ -38,6 +38,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
         if (signalVector != SignalVector.zero) {
           var movementLeft = signalVector.length * continuousEnvCell.being.speed
+          var freedFrom: (Int, Array[Int]) = (-1, Array())
 
           while (movementLeft > eps) {
             val movementVector = getMovementVector(continuousEnvCell.being, signalVector, movementLeft)
@@ -54,20 +55,23 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
               decision match {
                 case Free =>
+                  freedFrom = getSegmentsFreedFrom(continuousEnvCell)
                   continuousEnvCell.beingMetadata = BeingMetadata.initial
                 case SlideForward =>
                   val (newBeing, movementLength, movedToObstacleEnd) = moveBeingAlongObstacle(continuousEnvCell, movementVector)
                   continuousEnvCell.being = newBeing
-                  if (isOnBorder(continuousEnvCell)) {
+                  if (isOnBorder(continuousEnvCell) && isMovingTowardsBorder(continuousEnvCell, signalVector)) {
                     val neighbour = getNeighbourInPosition(continuousEnvCell)
-                    continuousEnvCell.beingMetadata = BeingMetadata.initial
+                    if (neighbour != null) {
+                      continuousEnvCell.beingMetadata = BeingMetadata.initial
 
-                    plans = Plans(Map((neighbour, Seq(Plan(
-                      Arrive(continuousEnvCell),
-                      Leave(continuousEnvCell),
-                      Stay(continuousEnvCell)
-                    )))))
-                    movementLeft = 0d
+                      plans = Plans(Map((neighbour, Seq(Plan(
+                        Arrive(continuousEnvCell),
+                        Leave(continuousEnvCell),
+                        Stay(continuousEnvCell)
+                      )))))
+                      movementLeft = 0d
+                    }
                   } else if (movedToObstacleEnd) {
                     val oldBeingMetadata = continuousEnvCell.beingMetadata
                     val nextObstacleSegmentIndex = getNextObstacleSegmentIndexInDirection(oldBeingMetadata.obstacleSegmentIndex, oldBeingMetadata.movementDirection, oldBeingMetadata.segmentsInObstacle)
@@ -87,7 +91,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
               }
             } else if (!continuousEnvCell.beingMetadata.isMovingAroundObstacle) {
               val (obstacleIndex, segmentIndex, intersectionPoint) = findNearestObstacle(continuousEnvCell, movementVector)
-              if (obstacleIndex != -1) {
+              if (obstacleIndex != -1 && obstacleIndex != freedFrom._1 && !freedFrom._2.contains(segmentIndex)) {
                 val (newBeing, movementLength) = moveBeingToObstacle(continuousEnvCell, intersectionPoint)
                 val movementDirection = getMovementDirectionAfterObstacleHit(continuousEnvCell, obstacleIndex, segmentIndex, movementVector)
                 val segmentsInObstacle = getSegmentsInObstacle(continuousEnvCell, obstacleIndex)
@@ -95,20 +99,24 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
                 continuousEnvCell.being = newBeing
                 continuousEnvCell.beingMetadata = newBeingMetadata
                 movementLeft = movementLeft - movementLength
+                freedFrom = (-1, Array())
               } else {
                 val (newBeing, movementLength) = moveBeing(continuousEnvCell, movementVector)
                 continuousEnvCell.being = newBeing
                 movementLeft = movementLeft - movementLength
+                freedFrom = (-1, Array())
 
-                if (isOnBorder(continuousEnvCell)) {
+                if (isOnBorder(continuousEnvCell) && isMovingTowardsBorder(continuousEnvCell, signalVector)) {
                   val neighbour = getNeighbourInPosition(continuousEnvCell)
-                  continuousEnvCell.beingMetadata = BeingMetadata.initial
+                  if (neighbour != null) {
+                    continuousEnvCell.beingMetadata = BeingMetadata.initial
 
-                  plans = Plans(Map((neighbour, Seq(Plan(
-                    Arrive(continuousEnvCell),
-                    Leave(continuousEnvCell),
-                    Stay(continuousEnvCell)
-                  )))))
+                    plans = Plans(Map((neighbour, Seq(Plan(
+                      Arrive(continuousEnvCell),
+                      Leave(continuousEnvCell),
+                      Stay(continuousEnvCell)
+                    )))))
+                  }
                   movementLeft = 0d
                 }
               }
@@ -241,6 +249,21 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     }
 
     chosenDecision
+  }
+
+  private def getSegmentsFreedFrom(cell: ContinuousEnvCell): (Int, Array[Int]) = {
+    if (isInBeginningOfObstacleSegment(cell)) {
+      cell.beingMetadata.movementDirection match {
+        case Clockwise =>
+          (cell.beingMetadata.obstacleIndex, Array((cell.beingMetadata.obstacleSegmentIndex + cell.beingMetadata.segmentsInObstacle - 1) % cell.beingMetadata.segmentsInObstacle, cell.beingMetadata.obstacleSegmentIndex))
+        case CounterClockwise =>
+          (cell.beingMetadata.obstacleIndex, Array(cell.beingMetadata.obstacleSegmentIndex, (cell.beingMetadata.obstacleSegmentIndex + 1) % cell.beingMetadata.segmentsInObstacle))
+        case _ =>
+          (-1, Array())
+      }
+    } else {
+      (cell.beingMetadata.obstacleIndex, Array(cell.beingMetadata.obstacleSegmentIndex))
+    }
   }
 
   private def getOppositeMovementDirection(movementDirection: MovementDirection): MovementDirection = {
@@ -413,6 +436,35 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     val newX = math.max(cell.cellOutline.x.doubleValue, math.min(cell.being.x + movementVector.x, (cell.cellOutline.x + cell.cellOutline.width).doubleValue))
     val newY = math.max(cell.cellOutline.y.doubleValue, math.min(cell.being.y + movementVector.y, (cell.cellOutline.y + cell.cellOutline.height).doubleValue))
     (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
+
+    /*val intersectionWithBoundary: (Double, Double) = cellOutlineToObstacleSegments(cell)
+      .map(outlineSegment => getIntersectionPoint(movementVector, outlineSegment))
+      .filter(intersectionPoint => intersectionPoint != (-1, -1))
+      .map(intersectionPoint => (intersectionPoint, getDistance(cell.being, intersectionPoint)))
+      .sortBy(_._2)
+      .map { case (intersectionPoint, _) => intersectionPoint }
+      .headOption.getOrElse((-1d, -1d))
+
+    if (intersectionWithBoundary == (-1d, -1d)) { // will not hit boundary
+      val newX = cell.being.x + movementVector.x
+      val newY = cell.being.y + movementVector.y
+      (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
+    } else {
+      moveBeingToObstacle(cell, intersectionWithBoundary)
+    }*/
+  }
+
+  private def cellOutlineToObstacleSegments(cell: ContinuousEnvCell): Array[ObstacleSegment] = {
+    val bottomLeft = (cell.cellOutline.x, cell.cellOutline.y)
+    val topLeft = (cell.cellOutline.x, cell.cellOutline.y + cell.cellOutline.height)
+    val topRight = (cell.cellOutline.x + cell.cellOutline.width, cell.cellOutline.y + cell.cellOutline.height)
+    val bottomRight = (cell.cellOutline.x + cell.cellOutline.width, cell.cellOutline.y)
+    Array(
+      ObstacleSegment(bottomLeft, topLeft),
+      ObstacleSegment(topLeft, topRight),
+      ObstacleSegment(topRight, bottomRight),
+      ObstacleSegment(bottomLeft, bottomLeft)
+    )
   }
 
   private def moveBeingToObstacle(cell: ContinuousEnvCell, intersectionPoint: (Double, Double)): (Being, Double) = {
@@ -434,6 +486,25 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     cell.being.x == leftBorder || cell.being.x == rightBorder || cell.being.y == bottomBorder || cell.being.y == topBorder
   }
 
+  private def isMovingTowardsBorder(cell: ContinuousEnvCell, signalVector: SignalVector): Boolean = {
+    val leftBorder = cell.cellOutline.x
+    val rightBorder = cell.cellOutline.x + cell.cellOutline.width
+    val bottomBorder = cell.cellOutline.y
+    val topBorder = cell.cellOutline.y + cell.cellOutline.height
+
+    if (cell.being.x == leftBorder) {
+      signalVector.x <= 0
+    } else if (cell.being.x == rightBorder) {
+      signalVector.x >= 0
+    } else if (cell.being.y == bottomBorder) {
+      signalVector.y <= 0
+    } else if (cell.being.y == topBorder) {
+      signalVector.y >= 0
+    } else {
+      false
+    }
+  }
+
   private def getNeighbourInPosition(cell: ContinuousEnvCell): GridMultiCellId = {
     val diagonalNeighbour = cell.neighbourhood.diagonalNeighbourhood
       .filter { case (direction, _) => isInPositionDiagonal(direction, cell) }
@@ -446,7 +517,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
       cell.neighbourhood.cardinalNeighbourhood
         .filter { case (direction, _) => isInPositionCardinal(direction, cell) }
         .map { case (direction, boundary) => getNeighbourInBoundary(direction, boundary, cell) }
-        .head
+        .headOption.orNull
     }
   }
 
@@ -490,7 +561,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     boundary.boundaries
       .filter { case (segment, _) => containsPosition(segment, position) }
       .map { case (_, neighbourId) => neighbourId }
-      .head
+      .headOption.orNull
   }
 
   private def containsPosition(segment: Segment, position: Double): Boolean = {

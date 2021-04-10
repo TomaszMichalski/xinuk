@@ -33,8 +33,8 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     var plans: Plans = Plans.empty
 
     if (continuousEnvCell.being != null) {
-        // val signalVector = signalMapToSignalVec(cellState.signalMap)
-        val signalVector = SignalVector(2.0, -2.0)
+        val signalVector = signalMapToSignalVec(cellState.signalMap)
+        // val signalVector = SignalVector(2.0, -2.0)
 
         if (signalVector != SignalVector.zero) {
           var movementLeft = signalVector.length * continuousEnvCell.being.speed
@@ -433,11 +433,12 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
   }
 
   private def moveBeing(cell: ContinuousEnvCell, movementVector: MovementVector): (Being, Double) = {
-    val newX = math.max(cell.cellOutline.x.doubleValue, math.min(cell.being.x + movementVector.x, (cell.cellOutline.x + cell.cellOutline.width).doubleValue))
+    /*val newX = math.max(cell.cellOutline.x.doubleValue, math.min(cell.being.x + movementVector.x, (cell.cellOutline.x + cell.cellOutline.width).doubleValue))
     val newY = math.max(cell.cellOutline.y.doubleValue, math.min(cell.being.y + movementVector.y, (cell.cellOutline.y + cell.cellOutline.height).doubleValue))
-    (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
+    (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))*/
 
-    /*val intersectionWithBoundary: (Double, Double) = cellOutlineToObstacleSegments(cell)
+    val intersectionWithBoundary: (Double, Double) = cellOutlineToObstacleSegments(cell)
+      .filter(outlineSegment => !isBeingOnOutlineSegment(cell, outlineSegment))
       .map(outlineSegment => getIntersectionPoint(movementVector, outlineSegment))
       .filter(intersectionPoint => intersectionPoint != (-1, -1))
       .map(intersectionPoint => (intersectionPoint, getDistance(cell.being, intersectionPoint)))
@@ -451,7 +452,7 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
       (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
     } else {
       moveBeingToObstacle(cell, intersectionWithBoundary)
-    }*/
+    }
   }
 
   private def cellOutlineToObstacleSegments(cell: ContinuousEnvCell): Array[ObstacleSegment] = {
@@ -463,8 +464,18 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
       ObstacleSegment(bottomLeft, topLeft),
       ObstacleSegment(topLeft, topRight),
       ObstacleSegment(topRight, bottomRight),
-      ObstacleSegment(bottomLeft, bottomLeft)
+      ObstacleSegment(bottomRight, bottomLeft)
     )
+  }
+
+  private def isBeingOnOutlineSegment(cell: ContinuousEnvCell, outlineSegment: ObstacleSegment): Boolean = {
+    if (outlineSegment.x == 0d) { // vertical
+      math.abs(cell.being.x - outlineSegment.a._1.doubleValue) < eps
+    } else if (outlineSegment.y == 0d) { // horizontal
+      math.abs(cell.being.y - outlineSegment.a._2.doubleValue) < eps
+    } else {
+      false
+    }
   }
 
   private def moveBeingToObstacle(cell: ContinuousEnvCell, intersectionPoint: (Double, Double)): (Being, Double) = {
@@ -483,7 +494,15 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     val bottomBorder = cell.cellOutline.y
     val topBorder = cell.cellOutline.y + cell.cellOutline.height
 
-    cell.being.x == leftBorder || cell.being.x == rightBorder || cell.being.y == bottomBorder || cell.being.y == topBorder
+    isOnBorder(cell.being.x, leftBorder) || isOnBorder(cell.being.x, rightBorder) || isOnBorder(cell.being.y, bottomBorder) || isOnBorder(cell.being.y, topBorder)
+  }
+
+  private def isOnBorder(beingCoord: Double, borderCoord: Int): Boolean = {
+    math.abs(beingCoord - borderCoord) < eps
+  }
+
+  private def isOnBorder(beingCoord: Double, borderCoord: Double): Boolean = {
+    math.abs(beingCoord - borderCoord) < eps
   }
 
   private def isMovingTowardsBorder(cell: ContinuousEnvCell, signalVector: SignalVector): Boolean = {
@@ -492,13 +511,13 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     val bottomBorder = cell.cellOutline.y
     val topBorder = cell.cellOutline.y + cell.cellOutline.height
 
-    if (cell.being.x == leftBorder) {
+    if (isOnBorder(cell.being.x, leftBorder)) {
       signalVector.x <= 0
-    } else if (cell.being.x == rightBorder) {
+    } else if (isOnBorder(cell.being.x, rightBorder)) {
       signalVector.x >= 0
-    } else if (cell.being.y == bottomBorder) {
+    } else if (isOnBorder(cell.being.y, bottomBorder)) {
       signalVector.y <= 0
-    } else if (cell.being.y == topBorder) {
+    } else if (isOnBorder(cell.being.y, topBorder)) {
       signalVector.y >= 0
     } else {
       false
@@ -527,10 +546,10 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     val cellOutlineBottom = cell.cellOutline.y.doubleValue
     val cellOutlineTop = (cell.cellOutline.y + cell.cellOutline.height).doubleValue
     direction match {
-      case TopLeft => cell.being.x == cellOutlineLeft && cell.being.y == cellOutlineTop
-      case TopRight => cell.being.x == cellOutlineRight && cell.being.y == cellOutlineTop
-      case BottomRight => cell.being.x == cellOutlineRight && cell.being.y == cellOutlineBottom
-      case BottomLeft => cell.being.x == cellOutlineLeft && cell.being.y == cellOutlineBottom
+      case TopLeft => isOnBorder(cell.being.x, cellOutlineLeft) && isOnBorder(cell.being.y, cellOutlineTop)
+      case TopRight => isOnBorder(cell.being.x, cellOutlineRight) && isOnBorder(cell.being.y, cellOutlineTop)
+      case BottomRight => isOnBorder(cell.being.x, cellOutlineRight) && isOnBorder(cell.being.y, cellOutlineBottom)
+      case BottomLeft => isOnBorder(cell.being.x, cellOutlineLeft) && isOnBorder(cell.being.y, cellOutlineBottom)
       case _ => false
     }
   }
@@ -541,10 +560,10 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
     val cellOutlineBottom = cell.cellOutline.y.doubleValue
     val cellOutlineTop = (cell.cellOutline.y + cell.cellOutline.height).doubleValue
     direction match {
-      case Top => cell.being.y == cellOutlineTop
-      case Right => cell.being.x == cellOutlineRight
-      case Bottom => cell.being.y == cellOutlineBottom
-      case Left => cell.being.x == cellOutlineLeft
+      case Top => isOnBorder(cell.being.y, cellOutlineTop)
+      case Right => isOnBorder(cell.being.x, cellOutlineRight)
+      case Bottom => isOnBorder(cell.being.y, cellOutlineBottom)
+      case Left => isOnBorder(cell.being.x, cellOutlineLeft)
       case _ => false
     }
   }

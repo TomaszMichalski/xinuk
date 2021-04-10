@@ -8,6 +8,9 @@ import pl.edu.agh.xinuk.algorithm.{PlanResolver, StateUpdate}
 import pl.edu.agh.xinuk.model.{CellContents, Signal}
 
 final case class ContinuousEnvPlanResolver() extends PlanResolver[ContinuousEnvConfig] {
+
+  private val eps = 1e-6
+
   override def isUpdateValid(contents: CellContents, update: StateUpdate)(implicit config: ContinuousEnvConfig): Boolean =
     (contents, update.updateTag, update.value) match {
       case (_: ContinuousEnvCell, Leave, _: ContinuousEnvCell) => true // being can leave cell
@@ -42,9 +45,9 @@ final case class ContinuousEnvPlanResolver() extends PlanResolver[ContinuousEnvC
   }
 
   private def translateCoord(coord: Double): Double = {
-    if (coord == 100d) {
+    if (math.abs(coord - 100d) < eps) {
       0d
-    } else if (coord == 0d) {
+    } else if (math.abs(coord) < eps) {
       100d
     } else {
       coord

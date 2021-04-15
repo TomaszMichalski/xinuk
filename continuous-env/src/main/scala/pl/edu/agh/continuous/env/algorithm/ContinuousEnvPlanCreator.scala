@@ -428,7 +428,18 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
 
   private def getMovementVector(being: Being, signalVector: SignalVector, movementLeft: Double): MovementVector = {
     val movementStart = (being.x, being.y)
-    val movementEnd = (being.x + signalVector.x * movementLeft / signalVector.length, being.y + signalVector.y * movementLeft / signalVector.length)
+    var movementEnd = (being.x + signalVector.x * movementLeft / signalVector.length, being.y + signalVector.y * movementLeft / signalVector.length)
+
+    if (movementEnd._1 > 100d && movementEnd._2 > 100d) {
+      movementEnd = (100d, 100d)
+    } else if (movementEnd._1 < 0d && movementEnd._2 > 100d) {
+      movementEnd = (0d, 100d)
+    } else if (movementEnd._1 > 100d && movementEnd._2 < 0d) {
+      movementEnd = (100d, 0d)
+    } else if (movementEnd._1 < 0d && movementEnd._2 < 0d) {
+      movementEnd = (0d, 0d)
+    }
+
     MovementVector(movementStart, movementEnd)
   }
 
@@ -479,8 +490,21 @@ final case class ContinuousEnvPlanCreator() extends PlanCreator[ContinuousEnvCon
   }
 
   private def moveBeingToObstacle(cell: ContinuousEnvCell, intersectionPoint: (Double, Double)): (Being, Double) = {
-    val newX = intersectionPoint._1
-    val newY = intersectionPoint._2
+    var newX = intersectionPoint._1
+    var newY = intersectionPoint._2
+
+    if (newX < cell.cellOutline.x) {
+      newX = cell.cellOutline.x.doubleValue
+    } else if (newX > cell.cellOutline.x + cell.cellOutline.width) {
+      newX = (cell.cellOutline.x + cell.cellOutline.width).doubleValue
+    }
+
+    if (newY < cell.cellOutline.y) {
+      newY = cell.cellOutline.y.doubleValue
+    } else if (newY > cell.cellOutline.y + cell.cellOutline.height) {
+      newY = (cell.cellOutline.y + cell.cellOutline.height).doubleValue
+    }
+
     (Being(newX, newY, cell.being.speed), getMovementLength((cell.being.x, cell.being.y), (newX, newY)))
   }
 

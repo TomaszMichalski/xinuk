@@ -47,7 +47,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val gridMultiCellId = cellQueue.dequeue()
       val x = gridMultiCellId.x
       val y = gridMultiCellId.y
-      val continuousEnvCell: ContinuousEnvCell = if (x == 50 && y == 45) {
+      val continuousEnvCell: ContinuousEnvCell = if (x == 60 && y == 80) {
         ContinuousEnvCell(config.initialSignal)
       } else {
         ContinuousEnvCell(Signal.zero)
@@ -118,7 +118,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val gridMultiCellId = finalCellQueue.dequeue()
       val continuousEnvCell: ContinuousEnvCell = worldBuilder(gridMultiCellId).state.contents.asInstanceOf[ContinuousEnvCell]
 
-      if (gridMultiCellId.x == 10 && gridMultiCellId.y == 90) {
+      if (gridMultiCellId.x == 50 && gridMultiCellId.y == 45) {
         continuousEnvCell.being = Being(config.cellSize / 2, config.cellSize / 2, config.beingSpeed)
         continuousEnvCell.beingMetadata = BeingMetadata.initial
       }

@@ -28,6 +28,7 @@ final case class ContinuousEnvPlanResolver() extends PlanResolver[ContinuousEnvC
       case (newCell: ContinuousEnvCell, Arrive, oldCell: ContinuousEnvCell) =>
         if (newCell.initialSignal == Signal.zero) {
           newCell.being = translateBeing(oldCell.being)
+          newCell.visited = true
           (newCell, ContinuousEnvMetrics.cellTransition)
         } else {
           (newCell, ContinuousEnvMetrics.sourceReached)

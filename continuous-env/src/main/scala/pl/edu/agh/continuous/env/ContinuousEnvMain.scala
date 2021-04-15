@@ -39,6 +39,8 @@ object ContinuousEnvMain extends LazyLogging {
       Color.GREEN
     } else if (continuousEnvCell.initialSignal.value > 0) {
       Color.BLUE
+    } else if (continuousEnvCell.visited) {
+      new Color(0, 128, 0)
     } else {
       val maxSignal = cellState.signalMap
         .values

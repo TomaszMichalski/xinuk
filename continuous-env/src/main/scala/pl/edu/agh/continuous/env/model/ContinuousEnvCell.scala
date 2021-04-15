@@ -15,4 +15,5 @@ final case class ContinuousEnvCell(initialSignal: Signal)(implicit config: Conti
   var obstacles: Array[Obstacle] = Array()
   var being: Being = _
   var beingMetadata: BeingMetadata = BeingMetadata.initial
+  var visited = false
 }

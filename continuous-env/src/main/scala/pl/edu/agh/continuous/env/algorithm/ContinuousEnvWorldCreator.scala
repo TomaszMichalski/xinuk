@@ -47,12 +47,11 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val gridMultiCellId = cellQueue.dequeue()
       val x = gridMultiCellId.x
       val y = gridMultiCellId.y
-      val continuousEnvCell: ContinuousEnvCell = if (x == 50 && y == 30) {
+      val continuousEnvCell: ContinuousEnvCell = if (x == 55 && y == 45) {
         ContinuousEnvCell(config.initialSignal)
       } else {
         ContinuousEnvCell(Signal.zero)
       }
-      // val continuousEnvCell: ContinuousEnvCell = ContinuousEnvCell(Signal.zero)
 
       continuousEnvCell.neighbourhood = worldBuilder.getExistingNeighbourhood(gridMultiCellId)
       continuousEnvCell.cellOutline = cellOutlineMap(gridMultiCellId)
@@ -77,7 +76,6 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
           obstaclesGroups = newObstaclesGroups
 
           if (isObstaclesGroupDividingCell(continuousEnvCell.cellOutline, obstaclesToMerge, x, y)) {
-            println("Cell division detected")
             val newCells = divideCells(continuousEnvCell, obstaclesToMerge, x, y)
               .filter(cell => !hasEmptyNeighbourhood(cell))
               .filter(cell => !hasSameNeighbourhood(cell, continuousEnvCell))
@@ -120,10 +118,10 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       val gridMultiCellId = finalCellQueue.dequeue()
       val continuousEnvCell: ContinuousEnvCell = worldBuilder(gridMultiCellId).state.contents.asInstanceOf[ContinuousEnvCell]
 
-      if (gridMultiCellId.x == 10 && gridMultiCellId.y == 50) {
+      /*if (gridMultiCellId.x == 5 && gridMultiCellId.y == 5) {
         continuousEnvCell.being = Being(config.cellSize / 2, config.cellSize / 2, config.beingSpeed)
         continuousEnvCell.beingMetadata = BeingMetadata.initial
-      }
+      }*/
 
       val boundaryObstacles = getBoundaryObstacles(continuousEnvCell)
       val allObstacles = boundaryObstacles ++ continuousEnvCell.obstacles
@@ -260,7 +258,7 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
 
   private def getOverlappingObstacles(continuousEnvCell: ContinuousEnvCell, obstacles: List[Obstacle], x: Int, y: Int)
                                      (implicit config: ContinuousEnvConfig): List[Obstacle] = {
-  val cellOutline = continuousEnvCell.cellOutline
+    val cellOutline = continuousEnvCell.cellOutline
     val xScale = y
     val yScale = config.worldWidth - x - 1
 
@@ -274,8 +272,63 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     val overlappingObstaclesAreas = obstaclesAreas
       .filter(obstacleArea => !obstacleArea.isEmpty)
       .map(overlappingObstacleArea => toObstacle(overlappingObstacleArea))
+      .map(obstacle => fixArtifactsInObstacle(obstacle, cellOutline, x, y))
 
     overlappingObstaclesAreas
+  }
+
+  private def fixArtifactsInObstacle(obstacle: Obstacle, cellOutline: CellOutline, x: Int, y: Int)
+                                    (implicit config: ContinuousEnvConfig): Obstacle = {
+    val xScale = y
+    val yScale = config.worldWidth - x - 1
+    val xBoundaries: Array[Int] = Array(
+      xScale * config.cellSize + cellOutline.x.intValue,
+      xScale * config.cellSize + cellOutline.x.intValue + cellOutline.width.intValue,
+    )
+    val yBoundaries: Array[Int] = Array(
+      yScale * config.cellSize + cellOutline.y.intValue,
+      yScale * config.cellSize + cellOutline.y.intValue + cellOutline.height.intValue
+    )
+
+    var newXs: Array[Int] = Array()
+    var newYs: Array[Int] = Array()
+
+    for (i <- 0 until obstacle.points) {
+      var newX = obstacle.xs(i)
+      var newY = obstacle.ys(i)
+
+      if (math.abs(newX - xBoundaries(0)) == 1) {
+        newX = xBoundaries(0)
+      } else if (math.abs(newX - xBoundaries(1)) == 1) {
+        newX = xBoundaries(1)
+      }
+
+      if (math.abs(newY - yBoundaries(0)) == 1) {
+        newY = yBoundaries(0)
+      } else if (math.abs(newY - yBoundaries(1)) == 1) {
+        newY = yBoundaries(1)
+      }
+
+      newXs = newXs :+ newX
+      newYs = newYs :+ newY
+    }
+
+    var uniquePoints: Array[(Int, Int)] = Array()
+    for (i <- 0 until obstacle.points) {
+      uniquePoints = uniquePoints :+ (newXs(i), newYs(i))
+    }
+    uniquePoints = uniquePoints.distinct
+
+    newXs = Array()
+    newYs = Array()
+
+    uniquePoints.foreach(point => {
+        newXs = newXs :+ point._1
+        newYs = newYs :+ point._2
+      }
+    )
+
+    Obstacle(newXs, newYs, newXs.length)
   }
 
   private def toObstacle(overlappingObstacleArea: Area): Obstacle = {
@@ -534,10 +587,16 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
     if (lastBoundaryNum < firstBoundaryNum) {
       lastBoundaryNum = lastBoundaryNum + 4
     }
-    for (i <- firstBoundaryNum until lastBoundaryNum) {
-      if (cellOutlineVertices(i % 4) != cellSplit(0)) {
-        verticesToAdd = verticesToAdd :+ cellOutlineVertices(i % 4)
+
+    try {
+      for (i <- firstBoundaryNum until lastBoundaryNum) {
+        if (cellOutlineVertices(i % 4) != cellSplit(0)) {
+          verticesToAdd = verticesToAdd :+ cellOutlineVertices(i % 4)
+        }
       }
+    } catch {
+      case e: Exception =>
+        println("oops")
     }
 
     cellSplit.reverse :++ verticesToAdd

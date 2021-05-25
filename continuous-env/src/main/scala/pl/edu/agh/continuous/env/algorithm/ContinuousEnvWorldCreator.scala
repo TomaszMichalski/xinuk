@@ -20,9 +20,9 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
       y <- 0 until config.worldHeight
     } {
 
-      val contents: CellContents = if (x == 2 && y == 2) {
+      val contents: CellContents = if (x == 5 && y == 5) {
         ContinuousEnvCell(config.initialSignal)
-      } else if (x == 0 && y == 4) {
+      } else if (x == 1 && y == 9) {
         ContinuousEnvBeing()
       } else if (isObstacle(x, y)) {
         Obstacle
@@ -37,15 +37,28 @@ object ContinuousEnvWorldCreator extends WorldCreator[ContinuousEnvConfig] {
   }
 
   private def isObstacle(x: Int, y: Int): Boolean = {
-    var result = false
-    if (x == 1) {
-      result = y > 0
+    val result = if (x == 0) {
+      y == 0 || y == 1 || y == 9
+    } else if (x == 1) {
+      y == 0 || (y >= 3 && y <= 6)
     } else if (x == 2) {
-      result = y == 1 || y == 4
+      y == 2 || y == 3 || (y >= 6 && y <= 8)
     } else if (x == 3) {
-      result = y == 1 || y == 2 || y == 4
+      (y >= 1 && y <= 2) || y >= 7
     } else if (x == 4) {
-      result = y == 4
+      y == 1 || (y >= 4 && y <= 6) || y == 9
+    } else if (x == 5) {
+      (y >= 1 && y <= 2) || y == 4 || (y >= 6 && y <= 7) || y == 9
+    } else if (x == 6) {
+      y == 2 || y == 6 || y == 7 || y == 9
+    } else if (x == 7) {
+      y == 0 || (y >= 2 && y <= 6) || y == 9
+    } else if (x == 8) {
+      y == 0 || y >= 8
+    } else if (x == 9) {
+      y <= 2 || y >= 7
+    } else {
+      false
     }
 
     result

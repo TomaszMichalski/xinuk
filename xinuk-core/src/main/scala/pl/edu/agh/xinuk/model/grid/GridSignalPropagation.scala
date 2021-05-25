@@ -39,8 +39,8 @@ object GridSignalPropagation {
   }
 
   private final object GridSignalPropagationBending extends SignalPropagation {
-    def direct: Double = 0.42
-    def adjacent: Double = 0.29
+    def direct: Double = 0.44
+    def adjacent: Double = 0.14
 
     def calculateUpdate(iteration: Long, neighbourStates: Map[Direction, CellState])(implicit config: XinukConfig): SignalMap = {
       config.worldType.directions.map(direction =>

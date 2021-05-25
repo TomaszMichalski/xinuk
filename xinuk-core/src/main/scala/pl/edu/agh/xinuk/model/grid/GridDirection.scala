@@ -26,7 +26,7 @@ object GridDirection {
 
   private def adjacent(direction: GridDirection): Seq[GridDirection] = {
     val idx: Int = values.indexOf(direction)
-    Seq(values((idx - 1 + values.size) % values.size), values((idx + 1) % values.size))
+    Seq(values((idx - 2 + values.size) % values.size), values((idx - 1 + values.size) % values.size), values((idx + 1) % values.size), values((idx + 2) % values.size))
   }
 
   implicit def values: Seq[GridDirection] = Seq(Top, TopRight, Right, BottomRight, Bottom, BottomLeft, Left, TopLeft)
